@@ -6,6 +6,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/pingcap/tidb v0.0.0-20211124132551-4a1b2e9fe5b5
 	github.com/pingcap/tidb/parser v0.0.0-20211124132551-4a1b2e9fe5b5
+	go.etcd.io/etcd/client/v3 v3.5.5
 	google.golang.org/grpc v1.41.0
 	google.golang.org/protobuf v1.27.1
 )
@@ -15,7 +16,9 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e // indirect
+	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548 // indirect
 	github.com/danjacques/gofslock v0.0.0-20191023191349-0a45f885bc37 // indirect
@@ -42,6 +45,8 @@ require (
 	github.com/uber/jaeger-client-go v2.22.1+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20210512015243-d19fbe541bf9 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
@@ -52,5 +57,4 @@ require (
 	golang.org/x/tools v0.1.8-0.20211029000441-d6a9af8af023 // indirect
 	google.golang.org/genproto v0.0.0-20210825212027-de86158e7fda // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )

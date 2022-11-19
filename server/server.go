@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync"
 
 	pb "github.com/FiGHtDDB/comm"
@@ -44,18 +45,20 @@ func (server *Server) Run(wg *sync.WaitGroup) {
 	}
 }
 
-
 func NewServer(cfgPath string) (*Server, error) {
-	// TODO: parse config file and construct Db
+	// TODO: parse config file and construct server
 	s := &Server{}
-	executor.ServerIp = "10.77.50.211"
-
 	return s, nil
 }
 
-
-
 func main() {
+	if len(os.Args) != 2 {
+		log.Fatal("please specify servername")
+		return
+	}
+
+	executor.ServerName = os.Args[1]
+
 	var wg sync.WaitGroup
 	// start server
 	server, err := NewServer("")

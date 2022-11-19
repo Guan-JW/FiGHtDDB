@@ -6,7 +6,10 @@ import (
 	"github.com/FiGHtDDB/parser"
 )
 
-var ServerIp = ""
+var (
+	ServerIp = ""
+	ServerName = ""
+)
 
 // return type?
 // consider we may project, union and join later
@@ -23,18 +26,18 @@ func executeNode(node parser.PlanTreeNode, resp *[]byte) {
 
 	// handle current node
 	switch node := node.(type) {
-	case *parser.SelectOperator:
-		executeSelectOperator(node, resp)
+	case *parser.ScanOperator:
+		executeScanOperator(node, resp)
 	default:
 		log.Fatal("Unimpletemented node type")
 	}
 }
 
-func executeSelectOperator(node *parser.SelectOperator, resp *[]byte) {
+func executeScanOperator(node *parser.ScanOperator, resp *[]byte) {
 	// judge if this operator executed by this site
 	// if so, connect to pg and get result
 	// else, send select str to correspoding node
-	if ServerIp == node.Ip() {
+	if ServerName == node.SiteName() {
 		// fetch tuples from local database
 		node.Db().FetchTuples(node.TableName(), resp)
 	} else {

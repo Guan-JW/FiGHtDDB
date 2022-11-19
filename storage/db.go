@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"strconv"
 
+	"github.com/FiGHtDDB/util"
 	_ "github.com/lib/pq"
 )
 
@@ -15,8 +15,6 @@ type Db struct {
 	password string
 	port 	int
 	sslmode string
-
-	pgclient *sql.DB
 }
 
 func NewDb(dbname string, user string, password string, port int, sslmode string) (*Db) {
@@ -28,21 +26,6 @@ func NewDb(dbname string, user string, password string, port int, sslmode string
 	db.sslmode = sslmode
 
 	return db
-}
-
-func tupleToByte(resp *[]byte, cols ...interface{}) {
-	for _,col := range cols {
-		switch col := col.(type) {
-		case int:
-			*resp = append(*resp, strconv.Itoa(col)...)
-		case string:
-			*resp = append(*resp, col...)
-		default:
-			log.Fatal("unimplemeted column type to byte")
-		}
-		*resp = append(*resp, ","...)
-	}
-	*resp = append(*resp, "\n"...)
 }
 
 func (db *Db) FetchTuples(tableName string, resp *[]byte) {
@@ -73,6 +56,6 @@ func (db *Db) FetchTuples(tableName string, resp *[]byte) {
 			log.Fatal("failed to scan row: ", err)
 			break
 		}
-		tupleToByte(resp, id, name, nation)
+		util.TupleToByte(resp, id, name, nation)
 	}
 }
