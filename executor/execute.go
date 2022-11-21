@@ -1,9 +1,11 @@
 package executor
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/storage"
 )
 
 var (
@@ -17,20 +19,26 @@ func executeNode(node parser.PlanTreeNode, resp *[]byte) {
 	if node == nil {
 		return
 	}
-	executeNode(node.LeftChild(), resp)
-	// handle result return from left child
-	// ...
-	executeNode(node.RightChild(), resp)
-	// handle result return from right child
-	// ...
+
+	resp1 := make([]byte, 0)
+	executeNode(node.LeftChild(), &resp1)
+	resp2 := make([]byte, 0)
+	executeNode(node.RightChild(), &resp2)
 
 	// handle current node
 	switch node := node.(type) {
 	case *parser.ScanOperator:
 		executeScanOperator(node, resp)
+	case *parser.UnionOperator:
+		executeUnionOperatpr(node, resp, &resp1, &resp2)
 	default:
 		log.Fatal("Unimpletemented node type")
 	}
+}
+
+func executeUnionOperatpr(node *parser.UnionOperator, resp *[]byte, respLeftChild *[]byte, respRightChild *[]byte) {
+	*resp = append(*resp, *respLeftChild...)
+	*resp = append(*resp, *respRightChild...)
 }
 
 func executeScanOperator(node *parser.ScanOperator, resp *[]byte) {
@@ -41,8 +49,9 @@ func executeScanOperator(node *parser.ScanOperator, resp *[]byte) {
 		// fetch tuples from local database
 		node.Db().FetchTuples(node.TableName(), resp)
 	} else {
-		// TODO: send sqlStr to anoter server
-		log.Fatal("Unimplemeted branch")
+		// construct sqlStr according to Scan operator and send it to anoter server
+		sqlStr := fmt.Sprintf("select * from %s;", node.TableName())
+		storage.FetchRemoteTuples(sqlStr, node.Site(), resp)
 	}
 }
 

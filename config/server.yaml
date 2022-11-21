@@ -1,0 +1,33 @@
+main:
+  ip: 10.77.50.211
+  port: 5600
+segment1:
+  ip: 10.77.50.208
+  port: 5600
+segment2:
+  ip: 10.77.50.209
+  port: 5600
+segment3:
+  ip: 10.77.50.209
+  port: 5601
+postgres1:
+  ip: 10.77.50.211
+  port: 5700
+postgres2:
+  ip: 10.77.50.208
+  port: 5700
+postgres3:
+  ip: 10.77.50.209
+  port: 5700
+postgres4:
+  ip: 10.77.50.209
+  port: 5701
+etcd1:
+  ip: 10.77.50.211
+  port: 2381
+etcd2:
+  ip: 10.77.50.208
+  port: 2381
+etcd3:
+  ip: 10.77.50.209
+  port: 2381

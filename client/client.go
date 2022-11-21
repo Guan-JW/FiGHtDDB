@@ -14,8 +14,7 @@ import (
 )
 
 var (
-	addr = "localhost:5556"
-	sqlStr = "select * from t;"
+	addr = "localhost:5600"
 )
 
 func main() {

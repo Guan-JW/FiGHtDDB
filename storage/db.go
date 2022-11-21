@@ -1,12 +1,17 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
+	pb "github.com/FiGHtDDB/comm"
 	"github.com/FiGHtDDB/util"
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Db struct {
@@ -58,4 +63,23 @@ func (db *Db) FetchTuples(tableName string, resp *[]byte) {
 		}
 		util.TupleToByte(resp, id, name, nation)
 	}
+}
+
+func FetchRemoteTuples(sqlStr string, addr string, resp *[]byte) {
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	c := pb.NewDataBaseClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	r, err := c.Scan(ctx, &pb.SqlRequest{SqlStr: sqlStr})
+	if err != nil {
+		log.Fatal("failed to parse: ", err)
+		return
+	}
+	*resp = []byte(r.Data)
 }

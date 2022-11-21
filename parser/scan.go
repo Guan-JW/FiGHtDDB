@@ -31,7 +31,7 @@ func (node *ScanOperator) TableName() string {
 }
 
 func (node *ScanOperator) Site() string {
-	return node.ip + strconv.Itoa(node.port)
+	return node.ip + ":" + strconv.Itoa(node.port)
 }
 
 func (node *ScanOperator) Ip() string {

@@ -32,7 +32,7 @@ func Parse(sql string) *PlanTree {
 
 	// scan node
 	node4 := new(ScanOperator)
-	node4.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
+	node4.db = storage.NewDb("postgres", "postgres", "postgres", 5700, "disable")
 	node4.ip = ips[0]
 	node4.port = ports[0]
 	node4.tableName = "Publisher"
@@ -42,7 +42,7 @@ func Parse(sql string) *PlanTree {
 
 	// scan node
 	node5 := new(ScanOperator)
-	node5.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
+	node5.db = storage.NewDb("postgres", "postgres", "postgres", 5700, "disable")
 	node5.ip = ips[1]
 	node5.port = ports[1]
 	node5.tableName = "Publisher"
@@ -52,7 +52,7 @@ func Parse(sql string) *PlanTree {
 
 	// scan node
 	node6 := new(ScanOperator)
-	node6.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
+	node6.db = storage.NewDb("postgres", "postgres", "postgres", 5700, "disable")
 	node6.ip = ips[2]
 	node6.port = ports[2]
 	node6.tableName = "Publisher"
@@ -62,7 +62,7 @@ func Parse(sql string) *PlanTree {
 
 	// scan node
 	node7 := new(ScanOperator)
-	node7.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
+	node7.db = storage.NewDb("postgres", "postgres", "postgres", 5701, "disable")
 	node7.ip = ips[3]
 	node7.port = ports[3]
 	node7.tableName = "Publisher"
