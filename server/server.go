@@ -25,9 +25,13 @@ type Server struct {
 }
 
 func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
+<<<<<<< HEAD
+=======
+	fmt.Println(in.SqlStr)
+>>>>>>> add parser
 	planTree := parser.Parse(in.SqlStr)
-	resp := make([]byte,0)
-	
+	resp := make([]byte, 0)
+
 	rc := executor.Execute(planTree, &resp)
 	return &pb.SqlResult{Rc: rc, Data: string(resp)}, nil
 }
