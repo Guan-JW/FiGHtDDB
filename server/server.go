@@ -6,13 +6,12 @@ import (
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 
 	pb "github.com/FiGHtDDB/comm"
-	"github.com/FiGHtDDB/executor"
-	"github.com/FiGHtDDB/parser"
 	"github.com/FiGHtDDB/storage"
+	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/optimizer"
 	"google.golang.org/grpc"
 )
 
@@ -25,15 +24,15 @@ type Server struct {
 }
 
 func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
-<<<<<<< HEAD
-=======
 	fmt.Println(in.SqlStr)
->>>>>>> add parser
-	planTree := parser.Parse(in.SqlStr)
-	resp := make([]byte, 0)
+	// TODO: get txn id from meta
+	var txnId int64 = 0
+	planTree := parser.Parse(in.SqlStr, txnId)
+	planTree.Analyze()
+	planTree = optimizer.Optimize(planTree)
 
-	rc := executor.Execute(planTree, &resp)
-	return &pb.SqlResult{Rc: rc, Data: string(resp)}, nil
+	// TODO: execute planTree
+	return &pb.SqlResult{Rc: 0, Data: in.SqlStr}, nil
 }
 
 func (s *Server) Scan(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
@@ -48,7 +47,7 @@ func (s *Server) Scan(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, er
 func (server *Server) Run(wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", storage.ServerPort()))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -67,21 +66,17 @@ func NewServer(cfgPath string) (*Server, error) {
 }
 
 func main() {
-	if len(os.Args) != 3 {
+	if len(os.Args) != 2 {
 		log.Fatal("please specify servername. port")
 		return
 	}
 
-	executor.ServerName = os.Args[1]
-	var err error
-	port, err = strconv.Atoi(os.Args[2])
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	// load configuration
+	storage.ServerName = os.Args[1]
+	storage.LoadConfig()
 
-	var wg sync.WaitGroup
 	// start server
+	var wg sync.WaitGroup
 	server, err := NewServer("")
 	if err != nil {
 		log.Fatal("fail to start server")
