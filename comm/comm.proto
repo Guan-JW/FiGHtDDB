@@ -22,7 +22,7 @@ package comm;
 service DataBase {
   // Sends a sql
   rpc SendSql (SqlRequest) returns (SqlResult) {}
-  rpc Scan (SqlRequest) returns (SqlResult) {}
+  rpc ExecSql (SqlRequest) returns (SqlResult) {}
 }
 
 // The request message containing sql string
