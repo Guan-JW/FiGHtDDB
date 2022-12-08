@@ -68,7 +68,7 @@ func main() {
 		storage.Condition{Col: "id", Type: "int", Comp: "<", Value: "205000"},
 	)
 	t.FragSchema = append(t.FragSchema, *frag)
-	
+
 	frag = new(storage.FragSchema)
 	frag.SiteName = "segment1"
 	frag.Cols = append(frag.Cols, "id", "title", "authors", "publisher_id", "copies")

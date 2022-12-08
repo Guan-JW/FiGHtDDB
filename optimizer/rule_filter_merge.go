@@ -1,17 +1,24 @@
 package optimizer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/storage"
 )
 
 func GetFragConditions(tableName string, locate string) []string {
 	// fmt.Println(tableName)
-	Tmeta := parser.GetFixFragMeta(tableName)
+	var rst []string
+
+	Tmeta, err := storage.GetTableMeta(tableName)
+	if err != nil {
+		fmt.Println(err)
+		return rst
+	}
 	// fmt.Println(Tmeta)
 
-	var rst []string
 	// rst := ""
 	for _, schema := range Tmeta.FragSchema {
 		if schema.SiteName != locate {

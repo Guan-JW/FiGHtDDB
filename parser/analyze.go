@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/FiGHtDDB/storage"
 )
 
 type void struct{}
@@ -46,8 +48,8 @@ func CheckValue(value string) bool {
 }
 
 // retrieve conditions that are related to TableName, and are not join conditions
-func SplitHorizontalCond(condition string, TableName string) ([]Condition, map[string]void) {
-	var Conditions []Condition
+func SplitHorizontalCond(condition string, TableName string) ([]storage.Condition, map[string]void) {
+	var Conditions []storage.Condition
 	set := make(map[string]void)
 
 	conds := strings.Split(condition, "and")
@@ -103,7 +105,7 @@ func SplitHorizontalCond(condition string, TableName string) ([]Condition, map[s
 
 		op := strings.FieldsFunc(cond, splitOperators) // get operator
 		// fmt.Println(operands, op)
-		var TmpCond Condition
+		var TmpCond storage.Condition
 		TmpCond.Col = left_operand[1]
 		TmpCond.Type = ""
 		TmpCond.Comp = op[0]
@@ -141,7 +143,7 @@ func SplitVerticalCond(condition string, TableName string) []string {
 }
 
 // check if some items in FragConds conflict with HorConds
-func CheckHorizontalConflict(FragConds *[]Condition, HorConds *[]Condition) bool {
+func CheckHorizontalConflict(FragConds *[]storage.Condition, HorConds *[]storage.Condition) bool {
 	var conflict bool = false // no conflict
 	for _, hc := range *HorConds {
 		for _, fc := range *FragConds {
@@ -230,7 +232,7 @@ func CheckHorizontalConflict(FragConds *[]Condition, HorConds *[]Condition) bool
 
 // check if col is used in only one fragment
 // primary key is used in all fragments
-func CheckIsPrimaryKey(Tmeta *TableMeta, col string) bool {
+func CheckIsPrimaryKey(Tmeta *storage.TableMeta, col string) bool {
 	counter := 0
 	for _, schema := range Tmeta.FragSchema {
 		for _, sCol := range schema.Cols {
@@ -244,7 +246,7 @@ func CheckIsPrimaryKey(Tmeta *TableMeta, col string) bool {
 
 // check if all columns in VerCols are contained in FragCols
 // check if all columns in FragCols are used in VerCols
-func CheckVerticalConflict(Tmeta *TableMeta, FragCols *[]string, VerCols *[]string, ColSet *map[string]void) bool {
+func CheckVerticalConflict(Tmeta *storage.TableMeta, FragCols *[]string, VerCols *[]string, ColSet *map[string]void) bool {
 	conflict := true
 	for _, fc := range *FragCols {
 		// conflict := true // not all columns inside the fragment are used
@@ -272,7 +274,7 @@ func CheckVerticalConflict(Tmeta *TableMeta, FragCols *[]string, VerCols *[]stri
 	return conflict
 }
 
-func FragmentFilter(TableName string, selectClause string, whereClause string) *TableMeta {
+func FragmentFilter(TableName string, selectClause string, whereClause string) *storage.TableMeta {
 	// fmt.Println("TableName is : ", TableName)
 	// fmt.Println("WhereClause == ", whereClause, "; SelectClause == ", selectClause)
 	HorConds, ColSet := SplitHorizontalCond(whereClause, TableName) // Condition
@@ -281,8 +283,12 @@ func FragmentFilter(TableName string, selectClause string, whereClause string) *
 	VerCols := SplitVerticalCond(selectClause, TableName) // string
 	// fmt.Println("VerCols == ", VerCols)
 
-	wholeMeta := GetFixFragMeta(TableName)
-	PartMeta := new(TableMeta)
+	wholeMeta, err := storage.GetTableMeta(TableName)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	PartMeta := new(storage.TableMeta)
 	PartMeta.TableName = TableName
 	for _, schema := range wholeMeta.FragSchema {
 		conflict := false
