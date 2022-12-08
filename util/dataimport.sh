@@ -17,7 +17,8 @@ CUSTOMER="drop table if exists customer; create table customer (id int primary k
 BOOK="drop table if exists book; create table book (id int primary key, name char(100), authors char(200), publisher_id int, copies int);"
 ORDERS="drop table if exists orders; create table orders (customer_id int, book_id int, quantity int);"
 
-DATASOURCE="~/FiGHtDDB/data"
+PROJECTDIR="/home/ddb/FiGHtDDB"
+DATASOURCE="/home/ddb/FiGHtDDB/data"
 DATADEST="/home/"
 DATAPATH="/home/data/"
 
@@ -65,6 +66,12 @@ function importDatabase {
     ${DELETEPUBLISHER4}${DELETECUSTOMER4}${DELETEBOOK4}${DELETEORDERS4}\""
 }
 
+function storeTableMeta {
+    cd ${PROJECTDIR};
+    go run main.go
+}
+
 createTable
 mvfile
 importDatabase
+storeTableMeta

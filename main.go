@@ -1,76 +1,171 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/gob"
 	"fmt"
 
 	"github.com/FiGHtDDB/storage"
 )
 
-
-func test(resp *[][]byte) {
-	*resp = append(*resp, make([]byte, 0))
-	(*resp)[len(*resp)-1] = append((*resp)[len(*resp)-1], "1234"...)
-	(*resp)[len(*resp)-1] = append((*resp)[len(*resp)-1], "5678"...)
-}
-
-func test2(resp []byte) {
-	resp = append(resp, "1234"...)
-	resp = append(resp, "5678"...)
-}
-
-type table struct {
-	Ips []string
-	Ports []int
-}
-
-func toGoB64(t table) string {
-	b := bytes.Buffer{}
-	e := gob.NewEncoder(&b)
-	err := e.Encode(t)
-    if err != nil { fmt.Println(`failed gob Encode`, err) }
-    return base64.StdEncoding.EncodeToString(b.Bytes())
-}
-
-func fromGoB64(str string) table {
-	m := table{}
-    by, err := base64.StdEncoding.DecodeString(str)
-    if err != nil { fmt.Println(`failed base64 Decode`, err); }
-    b := bytes.Buffer{}
-    b.Write(by)
-    d := gob.NewDecoder(&b)
-    err = d.Decode(&m)
-    if err != nil { fmt.Println(`failed gob Decode`, err); }
-    return m
-}
-
 func main() {
-	var t storage.TableMeta
-	t.TableName = "Publisher"
-	t.Ips = append(t.Ips, "10.77.50.211")
-	t.Ips = append(t.Ips, "10.77.50.208")
-	t.Ips = append(t.Ips, "10.77.50.209")
-	t.Ips = append(t.Ips, "10.77.50.209")
-	t.Ports = append(t.Ports, 5600)
-	t.Ports = append(t.Ports, 5600)
-	t.Ports = append(t.Ports, 5600)
-	t.Ports = append(t.Ports, 5601)
-	t.SiteNames = append(t.SiteNames, "main")
-	t.SiteNames = append(t.SiteNames, "segment1")
-	t.SiteNames = append(t.SiteNames, "segment2")
-	t.SiteNames = append(t.SiteNames, "segment3")
+	storage.LoadConfig("main")
 
-	err := storage.StoreTableMeta(t)
+	var t storage.TableMeta
+	t.TableName = "publisher"
+	t.FragNum = 4
+
+	// publisher
+	frag := new(storage.FragSchema)
+	frag.SiteName = "main"
+	frag.Cols = append(frag.Cols, "id", "name", "nation")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: "<", Value: "104000"},
+		storage.Condition{Col: "nation", Type: "string", Comp: "=", Value: "'PRC'"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment1"
+	frag.Cols = append(frag.Cols, "id", "name", "nation")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: "<", Value: "104000"},
+		storage.Condition{Col: "nation", Type: "string", Comp: "=", Value: "'USA'"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment2"
+	frag.Cols = append(frag.Cols, "id", "name", "nation")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: ">=", Value: "104000"},
+		storage.Condition{Col: "nation", Type: "string", Comp: "=", Value: "'PRC'"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment3"
+	frag.Cols = append(frag.Cols, "id", "name", "nation")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: ">=", Value: "104000"},
+		storage.Condition{Col: "nation", Type: "string", Comp: "=", Value: "'USA'"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	err := storage.StoreTableMeta(&t)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
-	ips, ports, siteNames, err := storage.FetchSites(t.TableName)
+
+	// book
+	t.TableName = "book"
+	t.FragNum = 3
+	t.FragSchema = t.FragSchema[:0]
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "main"
+	frag.Cols = append(frag.Cols, "id", "title", "authors", "publisher_id", "copies")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: "<", Value: "205000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+	
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment1"
+	frag.Cols = append(frag.Cols, "id", "title", "authors", "publisher_id", "copies")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: ">=", Value: "205000"},
+		storage.Condition{Col: "id", Type: "int", Comp: "<", Value: "210000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment2"
+	frag.Cols = append(frag.Cols, "id", "title", "authors", "publisher_id", "copies")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "id", Type: "int", Comp: ">=", Value: "210000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+	err = storage.StoreTableMeta(&t)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
-	fmt.Println(ips)
-	fmt.Println(ports)
-	fmt.Println(siteNames)
+
+	// customer
+	t.TableName = "customer"
+	t.FragNum = 2
+	t.FragSchema = t.FragSchema[:0]
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "main"
+	frag.Cols = append(frag.Cols, "id", "name")
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment1"
+	frag.Cols = append(frag.Cols, "id", "rank")
+	t.FragSchema = append(t.FragSchema, *frag)
+	err = storage.StoreTableMeta(&t)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// orders
+	t.TableName = "orders"
+	t.FragNum = 4
+	t.FragSchema = t.FragSchema[:0]
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "main"
+	frag.Cols = append(frag.Cols, "customer_id", "book_id", "quantity")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "customer_id", Type: "int", Comp: "<", Value: "307000"},
+		storage.Condition{Col: "book_id", Type: "int", Comp: "<", Value: "215000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment1"
+	frag.Cols = append(frag.Cols, "customer_id", "book_id", "quantity")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "customer_id", Type: "int", Comp: "<", Value: "307000"},
+		storage.Condition{Col: "book_id", Type: "int", Comp: ">=", Value: "215000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment2"
+	frag.Cols = append(frag.Cols, "customer_id", "book_id", "quantity")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "customer_id", Type: "int", Comp: ">=", Value: "307000"},
+		storage.Condition{Col: "book_id", Type: "int", Comp: "<", Value: "215000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+
+	frag = new(storage.FragSchema)
+	frag.SiteName = "segment3"
+	frag.Cols = append(frag.Cols, "customer_id", "book_id", "quantity")
+	frag.Conditions = append(frag.Conditions,
+		storage.Condition{Col: "customer_id", Type: "int", Comp: ">=", Value: "307000"},
+		storage.Condition{Col: "book_id", Type: "int", Comp: ">=", Value: "215000"},
+	)
+	t.FragSchema = append(t.FragSchema, *frag)
+	err = storage.StoreTableMeta(&t)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	st, err := storage.GetTableMeta("orders")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(st.TableName)
+	fmt.Println(st.FragSchema[0].Cols)
+	fmt.Println(st.FragSchema[3].Conditions[0].Col)
+	fmt.Println(st.FragSchema[1].Conditions[1].Value)
+	fmt.Println(st.FragSchema[2].Conditions[0].Comp)
 }
