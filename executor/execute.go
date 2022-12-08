@@ -2,13 +2,14 @@ package executor
 
 import (
 	"database/sql"
-
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/storage"
 	_ "github.com/lib/pq"
 )
 
@@ -251,26 +252,44 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 func generateCreateQuery(node parser.PlanTreeNode) string {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
-	client, _ := sql.Open("postgres", connStr)
+	client, err := sql.Open("postgres", connStr)
+	fmt.Println("create client:", err)
 
-	query := "show create table " + node.TmpTable
+	// query := "show create table " + node.TmpTable
+	// query := "select * from information_schema.columns where table_name = " + node.TmpTable
 	// println(query)
-	rows, _ := client.Query(query) //err
-	rows.Next()
-	var table_name sql.NullString
+	// fmt.Println(query)
+	// rows, err := client.Query(query) //err
+	// fmt.Println("create query:", err)
+	// rows.Next()
+	// var table_name sql.NullString
 	var create_sql sql.NullString
-	err := rows.Scan(&table_name, &create_sql) //err
-	fmt.Println("createQuery err:", err)
+	query := "select showcreatetable('public','table_name');"
+	query = strings.Replace(query, "table_name", node.TmpTable, -1)
+	fmt.Println("create query", query)
 
-	// fmt.Println(create_sql.String + ";")
-	// client.Close()
+	rows, err := client.Query(query)
+	fmt.Println("create query:", err)
+	rows.Next()
+	err = rows.Scan(&create_sql)
+	fmt.Println("createScan err:", err)
+	fmt.Println(create_sql.String + ";")
+
+	// err = rows.Scan(&table_name, &create_sql) //err
+
+	// fmt.Println("createQuery err:", err)
+
+	// // fmt.Println(create_sql.String + ";")
+	// // client.Close()
+	// return create_sql.String + ";"
 	return create_sql.String + ";"
 }
 
 func generateInsertQuery(node parser.PlanTreeNode) ([]string, bool) {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
-	client, _ := sql.Open("postgres", connStr)
+	client, err := sql.Open("postgres", connStr)
+	fmt.Println("insert client:", err)
 
 	mySlice := make([]string, 0)
 	insert_query := "insert into " + node.TmpTable + " values "
@@ -326,19 +345,20 @@ func generateInsertQuery(node parser.PlanTreeNode) ([]string, bool) {
 	}
 }
 
-func executeCreate(address string, create_sql string) {
+func executeRemoteCreateStmt(address string, create_sql string) {
 	//ExecuteRemoteCreateStmt
 }
 func executeTrans(node parser.PlanTreeNode) {
+	ServerName := storage.ServerName()
 	if node.Locate != ServerName {
 		address := node.Locate + ":" + node.Dest
 		create_sql := generateCreateQuery(node)
-		executeCreate(address, create_sql)
+		executeRemoteCreateStmt(address, create_sql)
 		insert_query, success := generateInsertQuery(node)
 
 		if success {
 			for _, query := range insert_query {
-				executeCreate(address, query)
+				executeRemoteCreateStmt(address, query)
 			}
 		}
 
@@ -417,7 +437,25 @@ func printResult(tree *parser.PlanTree) {
 	}
 
 }
+func printTree(node parser.PlanTreeNode, tree *parser.PlanTree, num int32) {
+	fmt.Println(node.TmpTable)
+	if node.Left != -1 {
+		leftNode := tree.Nodes[node.Left]
+		fmt.Println("left", leftNode.TmpTable)
+		printTree(leftNode, tree, num+1)
+	}
+	if node.Right != -1 {
+		rightNode := tree.Nodes[node.Left]
+		fmt.Println("right", rightNode.TmpTable)
+		printTree(rightNode, tree, num+1)
+	} else {
+		fmt.Println("no right node")
+	}
+
+}
 func Execute(tree *parser.PlanTree) int32 {
+	printTree(tree.Nodes[tree.Root], tree, 0)
+
 	var resp Tuples
 	executeNode(tree.Nodes[tree.Root], tree, resp)
 	printResult(tree)
