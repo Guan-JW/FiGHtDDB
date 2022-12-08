@@ -6,7 +6,7 @@ import (
 )
 
 func TupleToByte(resp *[]byte, cols ...interface{}) {
-	for _,col := range cols {
+	for _, col := range cols {
 		switch col := col.(type) {
 		case int:
 			*resp = append(*resp, strconv.Itoa(col)...)
@@ -20,3 +20,6 @@ func TupleToByte(resp *[]byte, cols ...interface{}) {
 	*resp = append(*resp, "\n"...)
 }
 
+func remove(slice []int, s int) []int {
+	return append(slice[:s], slice[s+1:]...)
+}

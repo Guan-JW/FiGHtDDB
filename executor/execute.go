@@ -2,13 +2,14 @@ package executor
 
 import (
 	"database/sql"
-	"database/sqlStr"
+
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
 
 	"github.com/FiGHtDDB/parser"
+	_ "github.com/lib/pq"
 )
 
 type Db struct {
@@ -18,6 +19,19 @@ type Db struct {
 	port     int
 	sslmode  string
 }
+
+func NewDb(dbname string, user string, password string, port int, sslmode string) *Db {
+	db := new(Db)
+	db.dbname = dbname
+	db.user = user
+	db.password = password
+	db.port = port
+	db.sslmode = sslmode
+
+	return db
+}
+
+var db = NewDb("postgres", "postgres", "postgres", 5700, "disable")
 
 var (
 	ServerIp   = ""
@@ -86,18 +100,23 @@ func Strval(value interface{}) string {
 
 // return type?
 // consider we may project, union and join later
-func executeNode(node parser.PlanTreeNode, resp Tuples) {
-	if node == nil {
-		return
+func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
+
+	if node.Left != -1 {
+		leftNode := tree.Nodes[node.Left]
+		var resp1 Tuples
+		fmt.Println("left:", leftNode.TmpTable)
+		executeNode(leftNode, tree, resp1)
 	}
 
-	resp1 := make([]byte, 0)
-	executeNode(node.Left, &resp1)
+	if node.Right != -1 {
+		rightNode := tree.Nodes[node.Right]
+		var resp2 Tuples
+		fmt.Println("right:", rightNode.TmpTable)
+		executeNode(rightNode, tree, resp2)
+	}
 
-	resp2 := make([]byte, 0)
-	executeNode(node.Right, &resp2)
-
-	executeOperator(node, resp)
+	executeOperator(node, tree, resp)
 
 	// handle current node
 	// switch node := node.(type) {
@@ -115,11 +134,13 @@ func executeNode(node parser.PlanTreeNode, resp Tuples) {
 // 	*resp = append(*resp, *respRightChild...)
 // }
 
-func CleanTmpTable(node parser.ScanOperator) {
+func CleanTmpTable(node parser.PlanTreeNode) {
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, _ := sql.Open("postgres", connStr)
 	nodeType := node.NodeType
-	siteName := node.siteName()
-	if nodeType != "table" || siteName != ServerName {
-		tablename := node.TmpTable()
+	siteName := node.Locate
+	if nodeType != 1 || siteName != ServerName {
+		tablename := node.TmpTable
 		// TODO: assert(plan_node.Right = -1)
 		sqlStr := "drop table if exists " + tablename
 
@@ -131,18 +152,19 @@ func CleanTmpTable(node parser.ScanOperator) {
 	}
 }
 
-func executeScan(node parser.ScanOperator, resp Tuples) {
+func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	//连接数据库
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", client.dbname, client.port, client.user, client.password, client.sslmode)
-	client, _ := sql.Open("postgres", connStr)
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, err := sql.Open("postgres", connStr)
+	fmt.Println("scan client:", err)
 
 	var sqlStr string
-	tableName := node.left.TmpTable
-	if node.Cols == nil {
-		sqlStr = "create table " + node.TempTable + " select * from " + tableName
+	tableName := tree.Nodes[node.Left].TmpTable
+	if node.Cols == "" {
+		sqlStr = "create table " + node.TmpTable + " as select * from " + tableName
 	} else {
 
-		sqlStr = "create table " + node.TempTable + " select " + node.Cols + " from " + tableName
+		sqlStr = "create table " + node.TmpTable + " as select " + node.Cols + " from " + tableName
 		// cols := node.colNames
 		// selectString := ""
 		// for _, c := range cols {
@@ -151,101 +173,121 @@ func executeScan(node parser.ScanOperator, resp Tuples) {
 		// selectString = selectString[:len(selectString)-1]
 		// sqlStr = "create table " + node.TempTable + " select " + selectString + " from " + tableName
 	}
-	stmt, _ := client.Prepare(sqlStr) //err
-	res, _ := stmt.Exec()             //err
+	fmt.Println("scan:", sqlStr)
+	stmt, err := client.Prepare(sqlStr) //err
+	fmt.Println("scan prepare:", err)
+	res, err := stmt.Exec() //err
+	fmt.Println("scan exec:", err)
 	println(res)
 
-	CleanTmpTable(node.left)
+	CleanTmpTable(tree.Nodes[node.Left])
 
 }
 
-func executeUnion(node parser.ScanOperator, resp Tuples) {
+func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	//连接数据库
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", client.dbname, client.port, client.user, client.password, client.sslmode)
-	client, _ := sql.Open("postgres", connStr)
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, err := sql.Open("postgres", connStr)
+	fmt.Println("union client:", err)
 
 	var sqlStr string
-	leftTableName := node.left.TmpTable()
-	rightTableName := node.right.TmpTable()
-	sqlStr = "create table " + node.TmpTable() + " select * from " + leftTableName + " union all" + " select * from " + rightTableName + ";"
-	stmt, _ := client.Prepare(sqlStr) //err
-	res, _ := stmt.Exec()             //err
+	leftTableName := tree.Nodes[node.Left].TmpTable
+	rightTableName := tree.Nodes[node.Right].TmpTable
+	sqlStr = "create table " + node.TmpTable + " as select * from " + leftTableName + " union all" + " select * from " + rightTableName + ";"
+	fmt.Println("union:", sqlStr)
+	stmt, err := client.Prepare(sqlStr) //err
+	fmt.Println("union prepare:", err)
+	res, err := stmt.Exec() //err
+	fmt.Println("union exec:", err)
 	println(res)
 
-	CleanTmpTable(node.left)
-	CleanTmpTable(node.right)
+	CleanTmpTable(tree.Nodes[node.Left])
+	CleanTmpTable(tree.Nodes[node.Left])
 
 }
 
-func executeJoin(node parser.ScanOperator, resp Tuples) {
+func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	//连接数据库
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", client.dbname, client.port, client.user, client.password, client.sslmode)
-	client, _ := sql.Open("postgres", connStr)
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, err := sql.Open("postgres", connStr)
+	fmt.Println("join client:", err)
 
 	var sqlStr string
-	leftTableName := node.left.TmpTable()
-	rightTableName := node.right.TmpTable()
+	leftTableName := tree.Nodes[node.Left].TmpTable
+	rightTableName := tree.Nodes[node.Right].TmpTable
 
-	if node.NodeType == "join0" {
-		sqlStr = "create table " + node.TmpTable() + " select * from " + leftTableName + "," + rightTableName + ";"
-
-	} else if node.NodeType == "join1" {
-		sqlStr = "create table " + node.TmpTable() + " select * from " + leftTableName + "," + rightTableName + " " + node.Where + ";"
+	if node.Where == "" {
+		sqlStr = "create table " + node.TmpTable + " as select * from " + leftTableName + "," + rightTableName + ";"
 
 	} else {
-		sqlStr = "create table " + node.TmpTable() + " select * from " + leftTableName + " natural join " + rightTableName + " " + node.Where + ";"
+		sqlStr = "create table " + node.TmpTable + " as select * from " + leftTableName + "," + rightTableName + " " + node.Where + ";"
 
 	}
 
-	stmt, _ := client.Prepare(sqlStr) //err
-	res, _ := stmt.Exec()             //err
+	// if node.NodeType == "join0" {
+	// 	sqlStr = "create table " + node.TmpTable + " select * from " + leftTableName + "," + rightTableName + ";"
+
+	// } else if node.NodeType == "join1" {
+	// 	sqlStr = "create table " + node.TmpTable + " select * from " + leftTableName + "," + rightTableName + " " + node.Where + ";"
+
+	// } else {
+	// 	sqlStr = "create table " + node.TmpTable + " select * from " + leftTableName + " natural join " + rightTableName + " " + node.Where + ";"
+
+	// }
+
+	fmt.Println("join:", sqlStr)
+	stmt, err := client.Prepare(sqlStr) //err
+	fmt.Println("join prepare:", err)
+	res, err := stmt.Exec() //err
+	fmt.Println("join exec:", err)
 	println(res)
 
-	CleanTmpTable(node.left)
-	CleanTmpTable(node.right)
+	CleanTmpTable(tree.Nodes[node.Left])
+	CleanTmpTable(tree.Nodes[node.Right])
 
 	// client.Close()
 }
 
-func generateCreateQuery(node *parser.PlanTreeNode) string {
+func generateCreateQuery(node parser.PlanTreeNode) string {
 	//连接数据库
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", client.dbname, client.port, client.user, client.password, client.sslmode)
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
 
-	query := "show create table " + node.TmpTable()
+	query := "show create table " + node.TmpTable
 	// println(query)
 	rows, _ := client.Query(query) //err
 	rows.Next()
-	var table_name sqlStr.NullString
-	var create_sql sqlStr.NullString
-	_ = rows.Scan(&table_name, &create_sql) //err
+	var table_name sql.NullString
+	var create_sql sql.NullString
+	err := rows.Scan(&table_name, &create_sql) //err
+	fmt.Println("createQuery err:", err)
 
 	// fmt.Println(create_sql.String + ";")
 	// client.Close()
 	return create_sql.String + ";"
 }
 
-func generateInsertQuery(node **parser.PlanTreeNode) ([]string, bool) {
+func generateInsertQuery(node parser.PlanTreeNode) ([]string, bool) {
 	//连接数据库
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", client.dbname, client.port, client.user, client.password, client.sslmode)
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
 
 	mySlice := make([]string, 0)
-	insert_query := "insert into " + node.TmpTable() + " values "
-	query := "select * from " + node.TmpTable()
+	insert_query := "insert into " + node.TmpTable + " values "
+	query := "select * from " + node.TmpTable
 	// println(query)
 	rows, _ := client.Query(query) //err:_
 
-	tt, _ := rows.ColumnTypes()
+	colTypes, _ := rows.ColumnTypes()
 
-	types := make([]reflect.NodeType, len(tt))
-	for i, tp := range tt {
+	types := make([]reflect.Type, len(colTypes))
+	for i, tp := range colTypes {
 		// ScanType
-		scanType := tp.ScanNodeType
+		scanType := tp.ScanType()
 		types[i] = scanType
 	}
 	// fmt.Println(" ")
-	values := make([]interface{}, len(tt))
+	values := make([]interface{}, len(colTypes))
 	for i := range values {
 		values[i] = reflect.New(types[i]).Interface()
 	}
@@ -254,7 +296,7 @@ func generateInsertQuery(node **parser.PlanTreeNode) ([]string, bool) {
 		if i%1000 == 0 && i != 0 {
 			insert_query = insert_query + ";"
 			mySlice = append(mySlice, insert_query)
-			insert_query = "insert into " + node.TmpTable() + " values "
+			insert_query = "insert into " + node.TmpTable + " values "
 		} else if i != 0 {
 			insert_query = insert_query + ", "
 		}
@@ -287,9 +329,9 @@ func generateInsertQuery(node **parser.PlanTreeNode) ([]string, bool) {
 func executeCreate(address string, create_sql string) {
 	//ExecuteRemoteCreateStmt
 }
-func executeTrans(node *parser.PlanTreeNode) {
-	if node.siteName() != ServerName {
-		address := node.ip + ":" + node.port
+func executeTrans(node parser.PlanTreeNode) {
+	if node.Locate != ServerName {
+		address := node.Locate + ":" + node.Dest
 		create_sql := generateCreateQuery(node)
 		executeCreate(address, create_sql)
 		insert_query, success := generateInsertQuery(node)
@@ -303,37 +345,82 @@ func executeTrans(node *parser.PlanTreeNode) {
 	}
 }
 
-func executeOperator(node *parser.PlanTreeNode, resp Tuples) {
+func executeOperator(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	if node.NodeType == 2 || node.NodeType == 3 { //"scan" "projection"{
-		executeScan(node, resp)
+		executeScan(node, tree, resp)
 
 	} else if node.NodeType == 4 { //strings.HasPrefix(node.NodeType, "join") {
-		executeJoin(node, resp)
+		executeJoin(node, tree, resp)
 
 	} else if node.NodeType == 5 { //"union" {
-		executeUnion(node, resp)
+		executeUnion(node, tree, resp)
 
 	}
 	executeTrans(node)
 
 }
 
-// func executeScanOperator(node *parser.ScanOperator, resp *[]byte) {
-// 	// judge if this operator executed by this site
-// 	// if so, connect to pg and get result
-// 	// else, send select str to correspoding node
-// 	if ServerName == node.SiteName() {
-// 		// fetch tuples from local database
-// 		node.Db().FetchTuples(node.TableName(), resp)
-// 	} else {
-// 		// construct sqlStr according to Scan operator and send it to anoter server
-// 		sqlStr := fmt.Sprintf("select * from %s;", node.TableName())
-// 		storage.FetchRemoteTuples(sqlStr, node.Site(), resp)
-// 	}
-// }
+//	func executeScanOperator(node *parser.ScanOperator, resp *[]byte) {
+//		// judge if this operator executed by this site
+//		// if so, connect to pg and get result
+//		// else, send select str to correspoding node
+//		if ServerName == node.SiteName() {
+//			// fetch tuples from local database
+//			node.Db().FetchTuples(node.TableName(), resp)
+//		} else {
+//			// construct sqlStr according to Scan operator and send it to anoter server
+//			sqlStr := fmt.Sprintf("select * from %s;", node.TableName())
+//			storage.FetchRemoteTuples(sqlStr, node.Site(), resp)
+//		}
+//	}
+func printResult(tree *parser.PlanTree) {
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, _ := sql.Open("postgres", connStr)
 
-func Execute(tree *parser.PlanTree, resp Tuples) int32 {
-	executeNode(tree.Root(), resp)
+	node := tree.Nodes[tree.Root]
+
+	query := "select * from " + node.TmpTable
+	println(query)
+	rows, _ := client.Query(query)
+
+	colTypes, _ := rows.ColumnTypes()
+
+	types := make([]reflect.Type, len(colTypes))
+	for i, tp := range colTypes {
+		// ScanType
+		scanType := tp.ScanType()
+		types[i] = scanType
+	}
+	// fmt.Println(" ")
+	values := make([]interface{}, len(colTypes))
+	for i := range values {
+		values[i] = reflect.New(types[i]).Interface()
+	}
+	i := 0
+	for rows.Next() {
+		// todo: 只插入前100条，之后需要修改
+		if i > 10 {
+			break
+		}
+		// todo: 只插入前100条，之后需要修改
+		_ = rows.Scan(values...)
+
+		fmt.Print("|")
+		for j := range values {
+
+			value := reflect.ValueOf(values[j]).Elem().Interface()
+			fmt.Print(Strval(value))
+			fmt.Print("|")
+		}
+		fmt.Println(" ")
+		i++
+	}
+
+}
+func Execute(tree *parser.PlanTree) int32 {
+	var resp Tuples
+	executeNode(tree.Nodes[tree.Root], tree, resp)
+	printResult(tree)
 
 	return 0
 }
