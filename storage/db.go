@@ -65,21 +65,23 @@ func (db *Db) FetchTuples(tableName string, resp *[]byte) {
 	}
 }
 
-func FetchRemoteTuples(sqlStr string, addr string, resp *[]byte) {
+func ExecRemoteSql(sqlStr string, addr string) int {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return
+		return 1
 	}
 	defer conn.Close()
 
 	c := pb.NewDataBaseClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	r, err := c.Scan(ctx, &pb.SqlRequest{SqlStr: sqlStr})
+
+	r, err := c.ExecSql(ctx, &pb.SqlRequest{SqlStr: sqlStr})
 	if err != nil {
 		log.Fatal("failed to parse: ", err)
-		return
+		return 1
 	}
-	*resp = []byte(r.Data)
+
+	return int(r.Rc)
 }

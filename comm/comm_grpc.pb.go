@@ -24,7 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type DataBaseClient interface {
 	// Sends a sql
 	SendSql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
-	Scan(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
+	ExecSql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
 }
 
 type dataBaseClient struct {
@@ -44,9 +44,9 @@ func (c *dataBaseClient) SendSql(ctx context.Context, in *SqlRequest, opts ...gr
 	return out, nil
 }
 
-func (c *dataBaseClient) Scan(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error) {
+func (c *dataBaseClient) ExecSql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error) {
 	out := new(SqlResult)
-	err := c.cc.Invoke(ctx, "/comm.DataBase/Scan", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/comm.DataBase/ExecSql", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (c *dataBaseClient) Scan(ctx context.Context, in *SqlRequest, opts ...grpc.
 type DataBaseServer interface {
 	// Sends a sql
 	SendSql(context.Context, *SqlRequest) (*SqlResult, error)
-	Scan(context.Context, *SqlRequest) (*SqlResult, error)
+	ExecSql(context.Context, *SqlRequest) (*SqlResult, error)
 	mustEmbedUnimplementedDataBaseServer()
 }
 
@@ -70,8 +70,8 @@ type UnimplementedDataBaseServer struct {
 func (UnimplementedDataBaseServer) SendSql(context.Context, *SqlRequest) (*SqlResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendSql not implemented")
 }
-func (UnimplementedDataBaseServer) Scan(context.Context, *SqlRequest) (*SqlResult, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Scan not implemented")
+func (UnimplementedDataBaseServer) ExecSql(context.Context, *SqlRequest) (*SqlResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecSql not implemented")
 }
 func (UnimplementedDataBaseServer) mustEmbedUnimplementedDataBaseServer() {}
 
@@ -104,20 +104,20 @@ func _DataBase_SendSql_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataBase_Scan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _DataBase_ExecSql_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SqlRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataBaseServer).Scan(ctx, in)
+		return srv.(DataBaseServer).ExecSql(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/comm.DataBase/Scan",
+		FullMethod: "/comm.DataBase/ExecSql",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataBaseServer).Scan(ctx, req.(*SqlRequest))
+		return srv.(DataBaseServer).ExecSql(ctx, req.(*SqlRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -134,8 +134,8 @@ var DataBase_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DataBase_SendSql_Handler,
 		},
 		{
-			MethodName: "Scan",
-			Handler:    _DataBase_Scan_Handler,
+			MethodName: "ExecSql",
+			Handler:    _DataBase_ExecSql_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
