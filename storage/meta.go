@@ -116,6 +116,11 @@ func GetServerAddress(siteName string) string {
 	return addr
 }
 
+func GetLocalDbConnStr() (string, string, string, int, string) {
+	return configs.DbMetas[serverName].DbName, configs.DbMetas[serverName].User, configs.DbMetas[serverName].Password,
+		configs.DbMetas[serverName].Port, configs.DbMetas[serverName].Sslmode
+}
+
 func GetTableMeta(tableName string) (*TableMeta, error) {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints: configs.EtcdEndpoints,

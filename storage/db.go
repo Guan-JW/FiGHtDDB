@@ -85,3 +85,27 @@ func ExecRemoteSql(sqlStr string, addr string) int {
 
 	return int(r.Rc)
 }
+
+func (db *Db)ExecSql(sqlStr string) int {
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Println(err)
+		return -1
+	}
+	defer client.Close()
+
+	res, err := client.Exec(sqlStr)
+	if err != nil {
+		log.Println(err)
+		return -1
+	}
+
+	num, err := res.RowsAffected()
+	if err != nil {
+		log.Println(err)
+		return -1
+	}
+
+	return int(num)
+}

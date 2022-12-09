@@ -1,9 +1,11 @@
 package optimizer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/storage"
 )
 
 func GetRelCols(pt *parser.PlanTree) *parser.PlanTree {
@@ -53,7 +55,11 @@ func getRelCols(t *parser.PlanTree, n int64) {
 }
 
 func getleafcols(node *parser.PlanTreeNode) {
-	Tmeta := parser.GetFixFragMeta(node.TmpTable)
+	Tmeta, err := storage.GetTableMeta(node.TmpTable)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	if len(Tmeta.FragSchema[0].Conditions) != 0 { // horizontal
 		// node.Rel_cols = Tmeta.FragSchema[0].Cols
 		node.Rel_cols = ""

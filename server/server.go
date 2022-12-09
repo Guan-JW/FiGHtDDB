@@ -15,12 +15,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	port = 5556
-)
-
 type Server struct {
 	pb.UnimplementedDataBaseServer
+	db *storage.Db
 }
 
 func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
@@ -33,6 +30,12 @@ func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult,
 
 	// TODO: execute planTree
 	return &pb.SqlResult{Rc: 0, Data: in.SqlStr}, nil
+}
+
+func (s *Server) ExecSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
+	rc := s.db.ExecSql(in.SqlStr)
+	
+	return &pb.SqlResult{Rc: int32(rc), Data: ""}, nil
 }
 
 func (s *Server) Scan(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
@@ -52,16 +55,17 @@ func (server *Server) Run(wg *sync.WaitGroup) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
-	pb.RegisterDataBaseServer(s, &Server{})
+	pb.RegisterDataBaseServer(s, server)
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
 
-func NewServer(cfgPath string) (*Server, error) {
-	// TODO: parse config file and construct server
+func NewServer() (*Server, error) {
 	s := &Server{}
+	s.db = storage.NewDb(storage.GetLocalDbConnStr())
+	
 	return s, nil
 }
 
@@ -77,7 +81,7 @@ func main() {
 
 	// start server
 	var wg sync.WaitGroup
-	server, err := NewServer("")
+	server, err := NewServer()
 	if err != nil {
 		log.Fatal("fail to start server")
 		return
