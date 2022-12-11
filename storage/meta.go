@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -119,6 +120,61 @@ func GetServerAddress(siteName string) string {
 func GetLocalDbConnStr() (string, string, string, int, string) {
 	return configs.DbMetas[serverName].DbName, configs.DbMetas[serverName].User, configs.DbMetas[serverName].Password,
 		configs.DbMetas[serverName].Port, configs.DbMetas[serverName].Sslmode
+}
+
+func ResetTid() {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints: configs.EtcdEndpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cli.Close()
+
+	value := strconv.Itoa(0)
+	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	_, err = cli.Put(ctx, "tid", value)
+	cancel()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func GetTid() int64 {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints: configs.EtcdEndpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	resp, err := cli.Get(ctx, "tid")
+	cancel()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(resp.Kvs) != 1 {
+		log.Fatal("etcd doesn't contain tid")
+	}
+	
+	tid, err := strconv.ParseInt(string(resp.Kvs[0].Value), 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	value := fmt.Sprint(tid+1)
+	ctx, cancel = context.WithTimeout(context.Background(), 5 * time.Second)
+	_, err = cli.Put(ctx, "tid", value)
+	cancel()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return tid
 }
 
 func GetTableMeta(tableName string) (*TableMeta, error) {
