@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"reflect"
 	"time"
 
 	pb "github.com/FiGHtDDB/comm"
@@ -86,7 +87,7 @@ func ExecRemoteSql(sqlStr string, addr string) int {
 	return int(r.Rc)
 }
 
-func (db *Db)ExecSql(sqlStr string) int {
+func (db *Db) ExecSql(sqlStr string) int {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -108,4 +109,74 @@ func (db *Db)ExecSql(sqlStr string) int {
 	}
 
 	return int(num)
+}
+
+func (db *Db) ExecSelect(sqlStr string) (string, int) {
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Println(err)
+		return "", -1
+	}
+	defer client.Close()
+
+	rows, err := client.Query(sqlStr)
+	if err != nil {
+		log.Fatal(err)
+		return "", -1
+	}
+	defer rows.Close()
+
+	colTypes, err := rows.ColumnTypes()
+	if err != nil {
+		log.Println(err)
+		return "", -1
+	}
+	values := make([]interface{}, len(colTypes))
+	for i := range values {
+		values[i] = reflect.New(colTypes[i].ScanType()).Interface()
+	}
+
+	var resStr string
+	for rows.Next() {
+		err := rows.Scan(values...)
+		if err != nil {
+			log.Println("failed to scan row: ", err)
+			return "", -1
+		}
+
+		resStr += "("
+		for _, value := range values {
+			resStr += util.Strval(reflect.ValueOf(value).Elem().Interface()) + ","
+		}
+		resStr = resStr[:len(resStr)-1]
+		resStr += "),"
+	}
+	resStr = resStr[:len(resStr)-1]
+
+	return resStr, 0
+}
+
+func (db *Db) GetSchema(sqlStr string) (string, int) {
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Println(err)
+		return "", -1
+	}
+	defer client.Close()
+
+	res, err := client.Query("select showcreatetable('public','book');")
+	if err != nil {
+		fmt.Println(err)
+		return "", -1
+	}
+	defer res.Close()
+	
+	var str string
+	for res.Next() {
+		res.Scan(&str)
+	}
+
+	return str, 0
 }
