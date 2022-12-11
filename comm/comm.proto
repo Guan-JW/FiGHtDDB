@@ -23,6 +23,8 @@ service DataBase {
   // Sends a sql
   rpc SendSql (SqlRequest) returns (SqlResult) {}
   rpc ExecSql (SqlRequest) returns (SqlResult) {}
+  rpc ExecSelect (SqlRequest) returns (SqlResult) {}
+  rpc GetSchema (SqlRequest) returns (SqlResult) {}
 }
 
 // The request message containing sql string

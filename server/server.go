@@ -37,6 +37,18 @@ func (s *Server) ExecSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult,
 	return &pb.SqlResult{Rc: int32(rc), Data: ""}, nil
 }
 
+func (s *Server) ExecSelect(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
+	data, rc := s.db.ExecSelect(in.SqlStr)
+
+	return &pb.SqlResult{Rc: int32(rc), Data: data}, nil
+}
+
+func (s *Server) GetSchema(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
+	data, rc := s.db.GetSchema(in.SqlStr)
+
+	return &pb.SqlResult{Rc: int32(rc), Data: data}, nil
+}
+
 func (server *Server) Run(wg *sync.WaitGroup) {
 	defer wg.Done()
 

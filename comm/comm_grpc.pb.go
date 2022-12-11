@@ -25,6 +25,8 @@ type DataBaseClient interface {
 	// Sends a sql
 	SendSql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
 	ExecSql(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
+	ExecSelect(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
+	GetSchema(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error)
 }
 
 type dataBaseClient struct {
@@ -53,6 +55,24 @@ func (c *dataBaseClient) ExecSql(ctx context.Context, in *SqlRequest, opts ...gr
 	return out, nil
 }
 
+func (c *dataBaseClient) ExecSelect(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error) {
+	out := new(SqlResult)
+	err := c.cc.Invoke(ctx, "/comm.DataBase/ExecSelect", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataBaseClient) GetSchema(ctx context.Context, in *SqlRequest, opts ...grpc.CallOption) (*SqlResult, error) {
+	out := new(SqlResult)
+	err := c.cc.Invoke(ctx, "/comm.DataBase/GetSchema", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DataBaseServer is the server API for DataBase service.
 // All implementations must embed UnimplementedDataBaseServer
 // for forward compatibility
@@ -60,6 +80,8 @@ type DataBaseServer interface {
 	// Sends a sql
 	SendSql(context.Context, *SqlRequest) (*SqlResult, error)
 	ExecSql(context.Context, *SqlRequest) (*SqlResult, error)
+	ExecSelect(context.Context, *SqlRequest) (*SqlResult, error)
+	GetSchema(context.Context, *SqlRequest) (*SqlResult, error)
 	mustEmbedUnimplementedDataBaseServer()
 }
 
@@ -72,6 +94,12 @@ func (UnimplementedDataBaseServer) SendSql(context.Context, *SqlRequest) (*SqlRe
 }
 func (UnimplementedDataBaseServer) ExecSql(context.Context, *SqlRequest) (*SqlResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExecSql not implemented")
+}
+func (UnimplementedDataBaseServer) ExecSelect(context.Context, *SqlRequest) (*SqlResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecSelect not implemented")
+}
+func (UnimplementedDataBaseServer) GetSchema(context.Context, *SqlRequest) (*SqlResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSchema not implemented")
 }
 func (UnimplementedDataBaseServer) mustEmbedUnimplementedDataBaseServer() {}
 
@@ -122,6 +150,42 @@ func _DataBase_ExecSql_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataBase_ExecSelect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SqlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataBaseServer).ExecSelect(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/comm.DataBase/ExecSelect",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataBaseServer).ExecSelect(ctx, req.(*SqlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataBase_GetSchema_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SqlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataBaseServer).GetSchema(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/comm.DataBase/GetSchema",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataBaseServer).GetSchema(ctx, req.(*SqlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DataBase_ServiceDesc is the grpc.ServiceDesc for DataBase service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -136,6 +200,14 @@ var DataBase_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExecSql",
 			Handler:    _DataBase_ExecSql_Handler,
+		},
+		{
+			MethodName: "ExecSelect",
+			Handler:    _DataBase_ExecSelect_Handler,
+		},
+		{
+			MethodName: "GetSchema",
+			Handler:    _DataBase_GetSchema_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

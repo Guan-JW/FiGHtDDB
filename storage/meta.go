@@ -100,8 +100,6 @@ func LoadConfig(_serverName string) {
 	if err != nil {
 		log.Fatalf("cannot unmarshal data: %v", err)
 	}
-	println(configs.SiteMetas["main"].Ip)
-	println(configs.DbMetas["segment1"].Port)
 }
 
 func ServerPort() int {
