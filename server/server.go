@@ -22,8 +22,7 @@ type Server struct {
 
 func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
 	fmt.Println(in.SqlStr)
-	// TODO: get txn id from meta
-	var txnId int64 = 0
+	txnId := storage.GetTid()
 	planTree := parser.Parse(in.SqlStr, txnId)
 	planTree.Analyze()
 	planTree = optimizer.Optimize(planTree)
@@ -38,17 +37,12 @@ func (s *Server) ExecSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult,
 	return &pb.SqlResult{Rc: int32(rc), Data: ""}, nil
 }
 
-func (s *Server) Scan(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
-	// TODO: construct a plan tree with one scan node
-	db := storage.NewDb("postgres", "postgres", "postgres", 5700, "disable")
-	resp := make([]byte, 0)
-	db.FetchTuples("Publisher", &resp)
-
-	return &pb.SqlResult{Rc: 0, Data: string(resp)}, nil
-}
-
 func (server *Server) Run(wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	if storage.ServerName() == "main" {
+		storage.ResetTid()
+	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", storage.ServerPort()))
 	if err != nil {
