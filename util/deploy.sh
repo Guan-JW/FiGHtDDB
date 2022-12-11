@@ -11,6 +11,8 @@ DATADIR="/home/ddb/FiGHtDDB"
 
 function sync {
     rm -rf deploy.log
+    ssh ddb@${HOST2} "rm -rf $DATADIR"
+    ssh ddb@${HOST3} "rm -rf $DATADIR"
     scp -r ${DATADIR} ddb@${HOST2}:~/ >> deploy.log 2>&1
     scp -r ${DATADIR} ddb@${HOST3}:~/ >> deploy.log 2>&1
 }
