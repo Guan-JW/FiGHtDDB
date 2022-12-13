@@ -1,6 +1,7 @@
 package optimizer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/FiGHtDDB/parser"
@@ -109,6 +110,22 @@ func AddProjectionNodeAboveTable(pt *parser.PlanTree, newNode parser.PlanTreeNod
 
 }
 
+func CreateLeafNode(TmpTableName string) parser.PlanTreeNode {
+	node := parser.InitialPlanTreeNode()
+	node.NodeType = -2
+	node.TmpTable = TmpTableName
+	return node
+}
+
+func addLeafNode(pt *parser.PlanTree, current_leaf int64, newLeafNode parser.PlanTreeNode) {
+	newNodeid := findEmptyNode(pt)
+	newLeafNode.Nodeid = newNodeid
+	newLeafNode.Parent = current_leaf
+	pt.Nodes[current_leaf].Left = newNodeid
+	pt.Nodes[newNodeid] = newLeafNode
+	pt.NodeNum++
+}
+
 func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 	// fmt.Println(" *********** BEGIN NODE : ", beginNode)
 
@@ -124,6 +141,8 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 
 	node := &pt.Nodes[beginNode]
 	switch node.NodeType {
+	case -2: // tmp leaf node
+		return
 	case 1:
 		// table
 		// fmt.Println("!!!!!! Table Node !!!!!!")
@@ -184,11 +203,10 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 				node.Cols = ""
 				node.ExecStmtCols = ""
 			}
-			prune_columns(pt, pt.Nodes[node.Left].Nodeid, node.Cols)
-
 		} else {
 			node.Cols = ""
 		}
+		prune_columns(pt, pt.Nodes[node.Left].Nodeid, node.Cols)
 
 	case 4:
 		// join
@@ -213,6 +231,22 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		// get children's TmpTable name
 		leftTmpTable := pt.Nodes[node.Left].TmpTable
 		rightTmpTable := pt.Nodes[node.Right].TmpTable
+		// fmt.Println(leftTmpTable, rightTmpTable)
+		// fmt.Println(pt.Nodes[node.Left].TransferFlag, pt.Nodes[node.Right].TransferFlag)
+
+		// join leaf table nodes directly
+		if pt.Nodes[node.Left].Left == -1 && pt.Nodes[node.Left].TransferFlag {
+			NewTableName := pt.GetTmpTableName()
+			pt.Nodes[node.Left].TmpTable = NewTableName
+			addLeafNode(pt, node.Left, CreateLeafNode(leftTmpTable))
+			leftTmpTable = NewTableName
+		} else if pt.Nodes[node.Right].Left == -1 && pt.Nodes[node.Right].TransferFlag {
+			NewTableName := pt.GetTmpTableName()
+			pt.Nodes[node.Right].TmpTable = NewTableName
+			addLeafNode(pt, node.Right, CreateLeafNode(rightTmpTable))
+			rightTmpTable = NewTableName
+		}
+		// os.Exit(0)
 
 		subsetLeft := ""
 		subsetRight := ""
@@ -309,9 +343,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		usedCols := strings.FieldsFunc(node.Cols, f)
 		leftRelCols := strings.FieldsFunc(pt.Nodes[node.Left].Rel_cols, f)
 		rightRelCols := strings.FieldsFunc(pt.Nodes[node.Right].Rel_cols, f)
-		// get children's TmpTable name
-		// leftTmpTable := pt.Nodes[node.Left].TmpTable
-		// rightTmpTable := pt.Nodes[node.Right].TmpTable
+
 		// fmt.Println("usedCols = ", usedCols)
 		// fmt.Println("leftRelCols = ", leftRelCols)
 		// fmt.Println("rightRelCols = ", rightRelCols)
@@ -357,9 +389,32 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		subsetLeft = strings.TrimSuffix(subsetLeft, ",")
 		subsetRight = strings.TrimSuffix(subsetRight, ",")
 
+		fmt.Println(node.Cols)
 		if CheckSelectAll(node.Rel_cols, node.Cols) {
+			fmt.Println("select all")
 			node.Cols = ""
 			node.ExecStmtCols = ""
+
+			// // get children's TmpTable name
+			// leftTmpTable := pt.Nodes[node.Left].TmpTable
+			// rightTmpTable := pt.Nodes[node.Right].TmpTable
+
+			// // union leaf table nodes directly
+			// fmt.Println(pt.Nodes[node.Left].Left, pt.Nodes[node.Right].Left)
+			// fmt.Println(pt.Nodes[node.Left].TmpTable, pt.Nodes[node.Right].TmpTable)
+			// if pt.Nodes[node.Left].Left == -1 && pt.Nodes[node.Left].TransferFlag {
+			// 	fmt.Println("transfer left")
+			// 	NewTableName := pt.GetTmpTableName()
+			// 	pt.Nodes[node.Left].TmpTable = NewTableName
+			// 	addLeafNode(pt, node.Left, CreateLeafNode(leftTmpTable))
+			// 	leftTmpTable = NewTableName
+			// } else if pt.Nodes[node.Right].Left == -1 && pt.Nodes[node.Right].TransferFlag {
+			// 	fmt.Println("transfer right")
+			// 	NewTableName := pt.GetTmpTableName()
+			// 	pt.Nodes[node.Right].TmpTable = NewTableName
+			// 	addLeafNode(pt, node.Right, CreateLeafNode(rightTmpTable))
+			// 	rightTmpTable = NewTableName
+			// }
 		}
 		prune_columns(pt, pt.Nodes[node.Left].Nodeid, subsetLeft)
 		prune_columns(pt, pt.Nodes[node.Right].Nodeid, subsetRight)
@@ -424,6 +479,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 }
 
 // add alias to the root node
+// select xx as xx
 func RootFilterRename(pt *parser.PlanTree) *parser.PlanTree {
 	f := func(c rune) bool {
 		return (c == ',' || c == ' ')
@@ -444,7 +500,7 @@ func RootFilterRename(pt *parser.PlanTree) *parser.PlanTree {
 
 func PruneColumns(pt *parser.PlanTree) *parser.PlanTree {
 	// fmt.Println("!!!! Column Pruning !!!!")
-	prune_columns(pt, pt.Root, "")
 	// pt.Print()
+	prune_columns(pt, pt.Root, "")
 	return pt
 }
