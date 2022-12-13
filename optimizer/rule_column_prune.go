@@ -1,6 +1,7 @@
 package optimizer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/FiGHtDDB/parser"
@@ -388,9 +389,9 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		subsetLeft = strings.TrimSuffix(subsetLeft, ",")
 		subsetRight = strings.TrimSuffix(subsetRight, ",")
 
-		// fmt.Println(node.Cols)
+		fmt.Println(node.Cols)
 		if CheckSelectAll(node.Rel_cols, node.Cols) {
-			// fmt.Println("select all")
+			fmt.Println("select all")
 			node.Cols = ""
 			node.ExecStmtCols = ""
 

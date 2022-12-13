@@ -1,0 +1,11 @@
+[33m37f0d3e[m HEAD@{0}: rebase: aborting
+[33m6361a31[m HEAD@{1}: checkout: moving from ddbe to 6361a31840f1ba2aabd7bbaa7701001c1fa2cfff^0
+[33m37f0d3e[m HEAD@{2}: checkout: moving from main to ddbe
+[33m6361a31[m HEAD@{3}: checkout: moving from 6361a31840f1ba2aabd7bbaa7701001c1fa2cfff to main
+[33m6361a31[m HEAD@{4}: checkout: moving from ddbe to origin/main
+[33m37f0d3e[m HEAD@{5}: checkout: moving from ddbe to ddbe
+[33m37f0d3e[m HEAD@{6}: commit: execute
+[33m3b637c5[m HEAD@{7}: checkout: moving from ddbe to ddbe
+[33m3b637c5[m HEAD@{8}: checkout: moving from ddbe to ddbe
+[33m3b637c5[m HEAD@{9}: checkout: moving from dev-hsy to ddbe
+[33m3b637c5[m HEAD@{10}: clone: from https://github.com/huasiy/FiGHtDDB.git

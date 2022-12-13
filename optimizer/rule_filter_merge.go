@@ -265,16 +265,16 @@ func merge_filters(pt *parser.PlanTree, beginNode int64) {
 		rightTmpTable := pt.Nodes[node.Right].TmpTable
 
 		// union leaf table nodes directly
-		// fmt.Println(pt.Nodes[node.Left].Left, pt.Nodes[node.Right].Left)
-		// fmt.Println(pt.Nodes[node.Left].TmpTable, pt.Nodes[node.Right].TmpTable)
+		fmt.Println(pt.Nodes[node.Left].Left, pt.Nodes[node.Right].Left)
+		fmt.Println(pt.Nodes[node.Left].TmpTable, pt.Nodes[node.Right].TmpTable)
 		if pt.Nodes[node.Left].Left == -1 && pt.Nodes[node.Left].TransferFlag {
-			// fmt.Println("transfer left")
+			fmt.Println("transfer left")
 			NewTableName := pt.GetTmpTableName()
 			pt.Nodes[node.Left].TmpTable = NewTableName
 			addLeafNode(pt, node.Left, CreateLeafNode(leftTmpTable))
 			leftTmpTable = NewTableName
 		} else if pt.Nodes[node.Right].Left == -1 && pt.Nodes[node.Right].TransferFlag {
-			// fmt.Println("transfer right")
+			fmt.Println("transfer right")
 			NewTableName := pt.GetTmpTableName()
 			pt.Nodes[node.Right].TmpTable = NewTableName
 			addLeafNode(pt, node.Right, CreateLeafNode(rightTmpTable))

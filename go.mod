@@ -3,12 +3,14 @@ module github.com/FiGHtDDB
 go 1.19
 
 require (
+	github.com/goccy/go-graphviz v0.0.9
 	github.com/lib/pq v1.10.7
 	github.com/pingcap/tidb v0.0.0-20211124132551-4a1b2e9fe5b5
-	github.com/pingcap/tidb/parser v0.0.0-20211124132551-4a1b2e9fe5b5
+	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	go.etcd.io/etcd/client/v3 v3.5.5
 	google.golang.org/grpc v1.41.0
 	google.golang.org/protobuf v1.27.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -24,7 +26,6 @@ require (
 	github.com/danjacques/gofslock v0.0.0-20191023191349-0a45f885bc37 // indirect
 	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/goccy/go-graphviz v0.0.9 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -35,6 +36,7 @@ require (
 	github.com/pingcap/failpoint v0.0.0-20210316064728-7acb0f0a3dfd // indirect
 	github.com/pingcap/kvproto v0.0.0-20211029081837-3c7bd947cf9b // indirect
 	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354 // indirect
+	github.com/pingcap/tidb/parser v0.0.0-20211124132551-4a1b2e9fe5b5 // indirect
 	github.com/pingcap/tipb v0.0.0-20211105090418-71142a4d40e3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.11.1 // indirect
@@ -47,7 +49,6 @@ require (
 	github.com/tikv/pd v1.1.0-beta.0.20211104095303-69c86d05d379 // indirect
 	github.com/uber/jaeger-client-go v2.22.1+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
-	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20210512015243-d19fbe541bf9 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
@@ -62,5 +63,4 @@ require (
 	golang.org/x/tools v0.1.8-0.20211029000441-d6a9af8af023 // indirect
 	google.golang.org/genproto v0.0.0-20210825212027-de86158e7fda // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

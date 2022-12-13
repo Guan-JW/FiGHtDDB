@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"time"
 
 	pb "github.com/FiGHtDDB/comm"
@@ -16,14 +17,14 @@ import (
 )
 
 type Db struct {
-	dbname	string
-	user   	string
+	dbname   string
+	user     string
 	password string
-	port 	int
-	sslmode string
+	port     int
+	sslmode  string
 }
 
-func NewDb(dbname string, user string, password string, port int, sslmode string) (*Db) {
+func NewDb(dbname string, user string, password string, port int, sslmode string) *Db {
 	db := new(Db)
 	db.dbname = dbname
 	db.user = user
@@ -67,7 +68,9 @@ func (db *Db) FetchTuples(tableName string, resp *[]byte) {
 }
 
 func ExecRemoteSql(sqlStr string, addr string) int {
+
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 		return 1
@@ -79,6 +82,7 @@ func ExecRemoteSql(sqlStr string, addr string) int {
 	defer cancel()
 
 	r, err := c.ExecSql(ctx, &pb.SqlRequest{SqlStr: sqlStr})
+
 	if err != nil {
 		log.Fatal("failed to parse: ", err)
 		return 1
@@ -88,6 +92,7 @@ func ExecRemoteSql(sqlStr string, addr string) int {
 }
 
 func (db *Db) ExecSql(sqlStr string) int {
+
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -110,8 +115,29 @@ func (db *Db) ExecSql(sqlStr string) int {
 
 	return int(num)
 }
+func ExecRemoteSelect(sqlStr string, addr string) string {
 
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+		return "1"
+	}
+	defer conn.Close()
+
+	c := pb.NewDataBaseClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	r, err := c.ExecSelect(ctx, &pb.SqlRequest{SqlStr: sqlStr})
+	if err != nil {
+		log.Fatal("failed to parse: ", err)
+		return "1"
+	}
+
+	return r.Data
+}
 func (db *Db) ExecSelect(sqlStr string) (string, int) {
+
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -157,7 +183,30 @@ func (db *Db) ExecSelect(sqlStr string) (string, int) {
 	return resStr, 0
 }
 
-func (db *Db) GetSchema(sqlStr string) (string, int) {
+func GetRemoteSchema(sqlStr string, addr string) string {
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+		return "1"
+	}
+	defer conn.Close()
+
+	c := pb.NewDataBaseClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	r, err := c.GetSchema(ctx, &pb.SqlRequest{SqlStr: sqlStr})
+
+	if err != nil {
+		log.Fatal("failed to parse: ", err)
+		return "1"
+	}
+
+	return r.Data
+}
+
+func (db *Db) GetSchema(tableName string) (string, int) {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -166,17 +215,20 @@ func (db *Db) GetSchema(sqlStr string) (string, int) {
 	}
 	defer client.Close()
 
-	res, err := client.Query("select showcreatetable('public','book');")
+	query := "select showcreatetable('public','table_name');"
+	query = strings.Replace(query, "table_name", tableName, -1)
+
+	res, err := client.Query(query)
 	if err != nil {
-		fmt.Println(err)
+
 		return "", -1
 	}
 	defer res.Close()
-	
-	var str string
+
+	var str sql.NullString
 	for res.Next() {
 		res.Scan(&str)
 	}
 
-	return str, 0
+	return str.String, 0
 }

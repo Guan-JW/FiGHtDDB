@@ -17,8 +17,8 @@ CUSTOMER="drop table if exists customer; create table customer (id int primary k
 BOOK="drop table if exists book; create table book (id int primary key, name char(100), authors char(200), publisher_id int, copies int);"
 ORDERS="drop table if exists orders; create table orders (customer_id int, book_id int, quantity int);"
 
-PROJECTDIR="/home/ddb/FiGHtDDB"
-DATASOURCE="/home/ddb/FiGHtDDB/data"
+PROJECTDIR="/home/ddb/ddbe"
+DATASOURCE="/home/ddb/ddbe/data"
 DATADEST="/home/"
 DATAPATH="/home/data/"
 

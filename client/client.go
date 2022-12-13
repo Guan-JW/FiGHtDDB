@@ -26,7 +26,7 @@ func main() {
 	defer conn.Close()
 
 	c := pb.NewDataBaseClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	// hard-cord queries
@@ -108,7 +108,7 @@ func main() {
 	and orders.quantity>1 
 	and publisher.nation='PRC'
 	`
-	
+
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
@@ -125,11 +125,13 @@ func main() {
 			fmt.Println("id should be in the range[0,10]")
 			continue
 		}
-
+		// fmt.Println("ready")
 		r, err := c.SendSql(ctx, &pb.SqlRequest{SqlStr: queries[id]})
+		// fmt.Println("done")
 		if err != nil {
 			log.Fatal("failed to parse: ", err)
 		}
 		fmt.Println(r.Data)
+		// printTree(planTree)
 	}
 }
