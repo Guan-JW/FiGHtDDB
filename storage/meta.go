@@ -18,9 +18,9 @@ import (
 
 // site metadata
 type SiteMeta struct {
-	SiteName	string `yaml:"sitename"`
-	Ip			string `yaml:"ip"`
-	Port		int `yaml:"port"`
+	SiteName string `yaml:"sitename"`
+	Ip       string `yaml:"ip"`
+	Port     int    `yaml:"port"`
 }
 
 // etcd metadata
@@ -28,62 +28,62 @@ type EtcdMeta []string
 
 // database metadata
 type DbMeta struct {
-	DbName		string `yaml:"dbname"`
-	Port		int `yaml:"port"`
-	User		string `yaml:"user"`
-	Password	string `yaml:"password"`
-	Sslmode		string `yaml:"sslmode"`
+	DbName   string `yaml:"dbname"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Sslmode  string `yaml:"sslmode"`
 }
 
 // table metadata
 type Condition struct {
-	Col		string	// column name
-	Type	string	// column type
-	Comp	string	// comparator
-	Value	string	// value
+	Col   string // column name
+	Type  string // column type
+	Comp  string // comparator
+	Value string // value
 }
 
 type FragSchema struct {
-	SiteName 	string
-	Cols	 	[]string
-	Conditions 	[]Condition
+	SiteName   string
+	Cols       []string
+	Conditions []Condition
 }
 
 type TableMeta struct {
-	TableName 	string
-	FragNum	  	int
-	FragSchema  []FragSchema
+	TableName  string
+	FragNum    int
+	FragSchema []FragSchema
 }
 
 func toGoB64(t TableMeta) string {
 	b := bytes.Buffer{}
 	e := gob.NewEncoder(&b)
 	err := e.Encode(t)
-    if err != nil {
+	if err != nil {
 		log.Fatal("failed gob Encode: ", err)
 	}
-    return base64.StdEncoding.EncodeToString(b.Bytes())
+	return base64.StdEncoding.EncodeToString(b.Bytes())
 }
 
 func fromGoB64(str string, t *TableMeta) {
-    by, err := base64.StdEncoding.DecodeString(str)
-    if err != nil {
+	by, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
 		log.Fatal("failed base64 Decode: ", err)
 	}
-    b := bytes.Buffer{}
-    b.Write(by)
-    d := gob.NewDecoder(&b)
-    err = d.Decode(t)
-    if err != nil {
+	b := bytes.Buffer{}
+	b.Write(by)
+	d := gob.NewDecoder(&b)
+	err = d.Decode(t)
+	if err != nil {
 		log.Fatal("failed gob Decode: ", err)
 	}
 }
 
 // Config (to be transformed to meta in etcd)
 type Config struct {
-	EtcdEndpoints	[]string `yaml:"etcd"`
-	SiteMetas		map[string]SiteMeta `yaml:"sites"`
-	DbMetas		map[string]DbMeta `yaml:"dbs"`
+	EtcdEndpoints []string            `yaml:"etcd"`
+	SiteMetas     map[string]SiteMeta `yaml:"sites"`
+	DbMetas       map[string]DbMeta   `yaml:"dbs"`
 }
 
 var configs Config
@@ -122,7 +122,7 @@ func GetLocalDbConnStr() (string, string, string, int, string) {
 
 func ResetTid() {
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints: configs.EtcdEndpoints,
+		Endpoints:   configs.EtcdEndpoints,
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
@@ -131,7 +131,7 @@ func ResetTid() {
 	defer cli.Close()
 
 	value := strconv.Itoa(0)
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = cli.Put(ctx, "tid", value)
 	cancel()
 	if err != nil {
@@ -141,7 +141,7 @@ func ResetTid() {
 
 func GetTid() int64 {
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints: configs.EtcdEndpoints,
+		Endpoints:   configs.EtcdEndpoints,
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
@@ -149,7 +149,7 @@ func GetTid() int64 {
 	}
 	defer cli.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	resp, err := cli.Get(ctx, "tid")
 	cancel()
 	if err != nil {
@@ -159,14 +159,14 @@ func GetTid() int64 {
 	if len(resp.Kvs) != 1 {
 		log.Fatal("etcd doesn't contain tid")
 	}
-	
+
 	tid, err := strconv.ParseInt(string(resp.Kvs[0].Value), 10, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	value := fmt.Sprint(tid+1)
-	ctx, cancel = context.WithTimeout(context.Background(), 5 * time.Second)
+	value := fmt.Sprint(tid + 1)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = cli.Put(ctx, "tid", value)
 	cancel()
 	if err != nil {
@@ -177,7 +177,7 @@ func GetTid() int64 {
 
 func GetTableMeta(tableName string) (*TableMeta, error) {
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints: configs.EtcdEndpoints,
+		Endpoints:   configs.EtcdEndpoints,
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
@@ -186,8 +186,8 @@ func GetTableMeta(tableName string) (*TableMeta, error) {
 	}
 	defer cli.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-	resp, err := cli.Get(ctx, "tables/" + tableName)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	resp, err := cli.Get(ctx, "tables/"+tableName)
 	cancel()
 	if err != nil {
 		log.Fatal(err)
@@ -216,8 +216,8 @@ func StoreTableMeta(table *TableMeta) error {
 	}
 	defer cli.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-	_, err = cli.Put(ctx, "tables/" + table.TableName, value)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err = cli.Put(ctx, "tables/"+table.TableName, value)
 	cancel()
 	if err != nil {
 		log.Fatal(err)

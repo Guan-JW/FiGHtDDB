@@ -1,36 +1,62 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
-	"time"
+	"net"
+	"sync"
 
 	pb "github.com/FiGHtDDB/comm"
+	"github.com/FiGHtDDB/executor"
+	"github.com/FiGHtDDB/optimizer"
+	"github.com/FiGHtDDB/parser"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
-	addr = "localhost:5600"
+	port = 5556
 )
 
-func main() {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+type Server struct {
+	pb.UnimplementedDataBaseServer
+}
+
+func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
+	// TODO: get txn id from meta
+	// txnID := int64(0)
+	// planTree := parser.Parse(in.SqlStr, txnID)
+	// resp := make([]byte, 0)
+
+	// rc := executor.Execute(planTree, &resp)
+	// return &pb.SqlResult{Rc: rc, Data: string(resp)}, nil
+	return nil, nil
+}
+
+func (server *Server) Run(wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
-	defer conn.Close()
+	s := grpc.NewServer()
+	pb.RegisterDataBaseServer(s, &Server{})
+	log.Printf("server listening at %v", lis.Addr())
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
 
-	c := pb.NewDataBaseClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+func NewServer(cfgPath string) (*Server, error) {
+	// TODO: parse config file and construct server
+	s := &Server{}
+	return s, nil
+}
 
-	// hard-cord queries
-	var queries [15]string
+var queries [15]string
+
+func main() {
 	queries[0] = `
 	select *
 	from customer`
@@ -109,29 +135,27 @@ func main() {
 	and publisher.nation='PRC'
 	`
 
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		text, _ := reader.ReadString('\n')
-		text = text[:len(text)-1]
-		if text == "q" {
-			break
-		}
-		id, err := strconv.Atoi(text)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		if id < 0 || id > 10 {
-			fmt.Println("id should be in the range[0,10]")
-			continue
-		}
-		// fmt.Println("ready")
-		r, err := c.SendSql(ctx, &pb.SqlRequest{SqlStr: queries[id]})
-		// fmt.Println("done")
-		if err != nil {
-			log.Fatal("failed to parse: ", err)
-		}
-		fmt.Println(r.Data)
-		// printTree(planTree)
+	// // start server
+	// server, err := NewServer("")
+	// if err != nil {
+	// 	log.Fatal("fail to start server")
+	// 	return
+	// }
+	// ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+	for i := 0; i <= 2; i++ {
+		fmt.Println("******************** ", i, "*********************")
+		// server.SendSql(ctx, &pb.SqlRequest{SqlStr: queries[i], i})
+		txnID := int64(0)
+		planTree := parser.Parse(queries[i], txnID)
+
+		// planTree.DrawPlanTree(i, "0")
+		planTree.Analyze()
+		// planTree.DrawPlanTree(i, "1")
+		planTree = optimizer.Optimize(planTree)
+		planTree.Print()
+		executor.Execute(planTree)
+		// planTree.DrawPlanTree(i, "2")
+		// planTree.DrawPlanTreeTmpTable(i, "Tmp")
+
 	}
 }

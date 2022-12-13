@@ -9,9 +9,10 @@ import (
 	"sync"
 
 	pb "github.com/FiGHtDDB/comm"
-	"github.com/FiGHtDDB/storage"
-	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/executor"
 	"github.com/FiGHtDDB/optimizer"
+	"github.com/FiGHtDDB/parser"
+	"github.com/FiGHtDDB/storage"
 	"google.golang.org/grpc"
 )
 
@@ -21,19 +22,22 @@ type Server struct {
 }
 
 func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
-	fmt.Println(in.SqlStr)
+	fmt.Println("server", in.SqlStr)
 	txnId := storage.GetTid()
 	planTree := parser.Parse(in.SqlStr, txnId)
 	planTree.Analyze()
 	planTree = optimizer.Optimize(planTree)
+	res := executor.Execute(planTree)
 
 	// TODO: execute planTree
-	return &pb.SqlResult{Rc: 0, Data: in.SqlStr}, nil
+	fmt.Println(res)
+	return &pb.SqlResult{Rc: 0, Data: res}, nil
 }
 
 func (s *Server) ExecSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
+	fmt.Println("execsql")
 	rc := s.db.ExecSql(in.SqlStr)
-	
+
 	return &pb.SqlResult{Rc: int32(rc), Data: ""}, nil
 }
 
@@ -71,7 +75,7 @@ func (server *Server) Run(wg *sync.WaitGroup) {
 func NewServer() (*Server, error) {
 	s := &Server{}
 	s.db = storage.NewDb(storage.GetLocalDbConnStr())
-	
+
 	return s, nil
 }
 
