@@ -153,7 +153,15 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		// 	n.SetLabel("Project: " + node.Cols + "\n" + node.TmpTable)
 		// }
 		graph.DeleteNode(n)
-		n, err = graph.CreateNode(node.TmpTable + "\n" + node.Locate)
+		createString := node.TmpTable + "\n" + node.Locate
+		if node.Left != -1 {
+			createString = pt.Nodes[node.Left].TmpTable + "\n" + node.Locate
+		}
+		if node.TransferFlag {
+			createString += "\nTransfer"
+		}
+		n, err = graph.CreateNode(createString)
+
 		if err != nil {
 			log.Fatal(err)
 			// do something with error
@@ -163,11 +171,16 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 
 	case 2:
 		//select
+		labelString := ""
 		if node.Cols == "" {
-			n.SetLabel("Select: select *\n" + node.Where)
+			labelString = "Select: select *\n" + node.Where
 		} else {
-			n.SetLabel("Select: select " + node.Cols + "\n" + node.Where)
+			labelString = "Select: select " + node.Cols + "\n" + node.Where
 		}
+		if node.TransferFlag {
+			labelString += "\nTransfer"
+		}
+		n.SetLabel(labelString)
 		if node.Left != -1 {
 			left_node := pt.DrawTreeNode(graph, node.Left)
 			graph.CreateEdge("", n, left_node)
@@ -184,6 +197,10 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		} else {
 			label += "select " + node.Cols + "\n"
 		}
+		if node.TransferFlag {
+			label += "\nTransfer"
+		}
+
 		n.SetLabel(label)
 		if node.Left != -1 {
 			left_node := pt.DrawTreeNode(graph, node.Left)
@@ -203,6 +220,9 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		} else {
 			label += node.Where
 		}
+		if node.TransferFlag {
+			label += "\nTransfer"
+		}
 		n.SetLabel(label)
 
 		if node.Left != -1 {
@@ -221,6 +241,10 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		// } else {
 		// 	label += "select " + node.Cols + "\n"
 		// }
+		if node.TransferFlag {
+			label += "\nTransfer"
+		}
+
 		n.SetLabel(label)
 
 		if node.Left != -1 {
@@ -314,7 +338,15 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		// 	n.SetLabel("Project: " + node.ExecStmtCols + "\n" + node.TmpTable)
 		// }
 		graph.DeleteNode(n)
-		n, err = graph.CreateNode(node.TmpTable + "\n" + node.Locate)
+		createString := node.TmpTable + "\n" + node.Locate
+		if node.Left != -1 {
+			createString = "Create TmpTable: " + node.TmpTable + "\nFrom: " + pt.Nodes[node.Left].TmpTable
+		}
+		if node.TransferFlag {
+			createString += "\nTransfer"
+		}
+		n, err = graph.CreateNode(createString)
+
 		if err != nil {
 			log.Fatal(err)
 			// do something with error
@@ -324,11 +356,17 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 
 	case 2:
 		//select
+		label := "Select: "
 		if node.ExecStmtCols == "" {
-			n.SetLabel("Select: select *\n" + node.ExecStmtWhere + "\n TmpTable: " + node.TmpTable)
+			label += "select *\n" + node.ExecStmtWhere + "\n TmpTable: " + node.TmpTable
 		} else {
-			n.SetLabel("Select: select " + node.ExecStmtCols + "\n" + node.ExecStmtWhere + "\n TmpTable: " + node.TmpTable)
+			label += "select " + node.ExecStmtCols + "\n" + node.ExecStmtWhere + "\n TmpTable: " + node.TmpTable
 		}
+		if node.TransferFlag {
+			label += "\nTransfer"
+		}
+		n.SetLabel(label)
+
 		if node.Left != -1 {
 			left_node := pt.DrawTreeNode(graph, node.Left)
 			graph.CreateEdge("", n, left_node)
@@ -344,6 +382,9 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 			label += "select *\nTmpTable: " + node.TmpTable
 		} else {
 			label += "select " + node.ExecStmtCols + "\nTmpTable: " + node.TmpTable
+		}
+		if node.TransferFlag {
+			label += "\nTransfer"
 		}
 		n.SetLabel(label)
 		if node.Left != -1 {
@@ -364,6 +405,9 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		} else {
 			label += node.ExecStmtWhere + "\nTmpTable: " + node.TmpTable
 		}
+		if node.TransferFlag {
+			label += "\nTransfer"
+		}
 		n.SetLabel(label)
 
 		if node.Left != -1 {
@@ -382,6 +426,9 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		// } else {
 		// 	label += "select " + node.ExecStmtCols + "\nTmpTable: " + node.TmpTable
 		// }
+		if node.TransferFlag {
+			label += "\nTransfer"
+		}
 		n.SetLabel(label)
 
 		if node.Left != -1 {

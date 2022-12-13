@@ -130,11 +130,12 @@ func addMergeWhereNode(pt *parser.PlanTree, newNode parser.PlanTreeNode, firstNo
 }
 
 func merge_filters(pt *parser.PlanTree, beginNode int64) {
-	node := pt.Nodes[beginNode]
+	node := &pt.Nodes[beginNode]
 	switch node.NodeType {
 	case 2: //select
 		oldWhere := node.Where
 		filterConditions := node.Where
+		transferFlag := node.TransferFlag
 		for filter := &pt.Nodes[node.Left]; ; filter = &pt.Nodes[filter.Left] {
 
 			if filter.NodeType != 2 { // finish of consecutive selection nodes
@@ -177,9 +178,11 @@ func merge_filters(pt *parser.PlanTree, beginNode int64) {
 							nodeID = nextID
 						}
 						filter.Parent = parentID
+						filter.TransferFlag = transferFlag
 
 					} else {
 						// fmt.Println("Adding new Where node...")
+						filter.TransferFlag = transferFlag
 						addMergeWhereNode(pt, parser.CreateSelectionNode(pt.GetTmpTableName(), newWhere), node.Nodeid, pt.Nodes[filter.Parent].Nodeid, filter.Nodeid)
 					}
 				}
@@ -250,9 +253,33 @@ func merge_filters(pt *parser.PlanTree, beginNode int64) {
 		// os.Exit(0)
 	case 3: //projection
 		merge_filters(pt, node.Left)
-	case 4, 5: //join and union
+	case 4: // join
 		merge_filters(pt, node.Left)
 		merge_filters(pt, node.Right)
+	case 5: // union
+		merge_filters(pt, node.Left)
+		merge_filters(pt, node.Right)
+
+		// get children's TmpTable name
+		leftTmpTable := pt.Nodes[node.Left].TmpTable
+		rightTmpTable := pt.Nodes[node.Right].TmpTable
+
+		// union leaf table nodes directly
+		fmt.Println(pt.Nodes[node.Left].Left, pt.Nodes[node.Right].Left)
+		fmt.Println(pt.Nodes[node.Left].TmpTable, pt.Nodes[node.Right].TmpTable)
+		if pt.Nodes[node.Left].Left == -1 && pt.Nodes[node.Left].TransferFlag {
+			fmt.Println("transfer left")
+			NewTableName := pt.GetTmpTableName()
+			pt.Nodes[node.Left].TmpTable = NewTableName
+			addLeafNode(pt, node.Left, CreateLeafNode(leftTmpTable))
+			leftTmpTable = NewTableName
+		} else if pt.Nodes[node.Right].Left == -1 && pt.Nodes[node.Right].TransferFlag {
+			fmt.Println("transfer right")
+			NewTableName := pt.GetTmpTableName()
+			pt.Nodes[node.Right].TmpTable = NewTableName
+			addLeafNode(pt, node.Right, CreateLeafNode(rightTmpTable))
+			rightTmpTable = NewTableName
+		}
 	}
 }
 
