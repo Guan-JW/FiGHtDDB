@@ -125,7 +125,7 @@ func ExecRemoteSelect(sqlStr string, addr string) string {
 	defer conn.Close()
 
 	c := pb.NewDataBaseClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	r, err := c.ExecSelect(ctx, &pb.SqlRequest{SqlStr: sqlStr})

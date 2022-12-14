@@ -6,7 +6,7 @@ import (
 	"github.com/FiGHtDDB/storage"
 )
 
-func main() {
+func storeTableMeta() {
 	storage.LoadConfig("main")
 
 	var t storage.TableMeta
@@ -156,4 +156,22 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+}
+
+func main() {
+	storeTableMeta()
+	// addr := "10.77.50.209:5601"
+	// conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// if err != nil {
+	// 	fmt.Println("did not connect: %v", err)
+	// }
+	// defer conn.Close()
+
+	// c := pb.NewDataBaseClient(conn)
+	// ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// defer cancel()
+
+	// query := "select * from book where copies > 5000;"
+	// rc, data := c.ExecSelect(ctx, &pb.SqlRequest{SqlStr: query})
+	// fmt.Println("rc: ", rc, "data: ", data)
 }
