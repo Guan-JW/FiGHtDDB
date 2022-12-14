@@ -14,7 +14,7 @@ PG4=postgres-hsy2
 
 PUBLISHER="drop table if exists publisher; create table publisher (id int primary key, name char(100), nation char(3));"
 CUSTOMER="drop table if exists customer; create table customer (id int primary key, name char (25), rank int);"
-BOOK="drop table if exists book; create table book (id int primary key, name char(100), authors char(200), publisher_id int, copies int);"
+BOOK="drop table if exists book; create table book (id int primary key, title char(100), authors char(200), publisher_id int, copies int);"
 ORDERS="drop table if exists orders; create table orders (customer_id int, book_id int, quantity int);"
 
 PROJECTDIR="/home/ddb/ddbe"
