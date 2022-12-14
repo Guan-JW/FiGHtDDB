@@ -407,11 +407,15 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	rightTableName := tree.Nodes[node.Right].TmpTable
 
 	print(node.ExecStmtWhere, node.Where)
+	Cols := "*"
+	if node.ExecStmtCols != "" {
+		Cols = node.ExecStmtCols
+	}
 	if node.ExecStmtWhere == "" {
-		sqlStr = "create table " + node.TmpTable + " as select * from " + leftTableName + " natural join " + rightTableName + ";"
+		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " natural join " + rightTableName + ";"
 
 	} else {
-		sqlStr = "create table " + node.TmpTable + " as select * from " + leftTableName + " natural join " + rightTableName + " " + node.ExecStmtWhere + ";"
+		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " natural join " + rightTableName + " " + node.ExecStmtWhere + ";"
 
 	}
 
@@ -691,7 +695,7 @@ func Execute(tree *parser.PlanTree) string {
 	// address := storage.GetServerAddress("segment1")
 	// res := storage.ExecRemoteSql("drop table if exists "+"_transaction_0_tmptable_5"+" ;", address)
 	// fmt.Println("mainres:", res)
-	// var resp Tuples
+	var resp Tuples
 
 	executeNode(tree.Nodes[tree.Root], tree, resp)
 	result := printResult(tree)
