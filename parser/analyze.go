@@ -451,17 +451,21 @@ func (physicalPlanTree *PlanTree) getLocate(i int64) (locate string) {
 // Analyze can transfer a logicalPlanTree to a physicalPlanTree
 func (physicalPlanTree *PlanTree) Analyze() {
 	// get from and where clauses
-	root := physicalPlanTree.Nodes[physicalPlanTree.Root]
-	selectClause := root.Cols
-	whereClause := ""
-	if physicalPlanTree.Nodes[root.Left].NodeType == 2 {
-		whereClause = physicalPlanTree.Nodes[root.Left].Where
-	}
-	for _, node := range physicalPlanTree.Nodes {
-		if node.NodeType == 1 {
-			physicalPlanTree.splitTableNode(node, selectClause, whereClause)
-		}
-	}
+
+	// root := physicalPlanTree.Nodes[physicalPlanTree.Root]
+	// selectClause := root.Cols
+	// whereClause := ""
+	// if physicalPlanTree.Nodes[root.Left].NodeType == 2 {
+	// 	whereClause = physicalPlanTree.Nodes[root.Left].Where
+	// }
+
+	// if more than one from table and
+	// for _, node := range physicalPlanTree.Nodes {
+	// 	if node.NodeType == 1 {
+	// 		physicalPlanTree.splitTableNode(node, selectClause, whereClause)
+	// 	}
+	// }
+
 	// physicalPlanTree.ShowPlanTree()
 	// os.Exit(0)
 	// fmt.Println("node num = ", physicalPlanTree.NodeNum)
@@ -471,9 +475,9 @@ func (physicalPlanTree *PlanTree) Analyze() {
 			continue
 		} else if node.Locate == "" {
 			physicalPlanTree.Nodes[i].Locate = physicalPlanTree.getLocate(int64(i))
-			// fmt.Println("locate=", physicalPlanTree.Nodes[i].Locate)
+			// fmt.Println("locate1=", physicalPlanTree.Nodes[i].Locate)
 		} else {
-			// fmt.Println("locate=", physicalPlanTree.Nodes[i].Locate)
+			// fmt.Println("locate2=", physicalPlanTree.Nodes[i].Locate)
 		}
 	}
 	for i, node := range physicalPlanTree.Nodes {

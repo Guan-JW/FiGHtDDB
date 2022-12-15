@@ -16,6 +16,8 @@ func Optimize(pt *parser.PlanTree) *parser.PlanTree {
 		pt = PruneColumns(pt)
 		pt = FilterMerge(pt)
 		pt = RootFilterRename(pt)
+		pt = RedirectEdges(pt)
+
 		// newtree = TransmissionMinimization(newtree)
 		// // newtree = GetRelCols(newtree)
 		// pt.Print()

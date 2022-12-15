@@ -1,7 +1,7 @@
 package optimizer
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/FiGHtDDB/parser"
@@ -126,7 +126,7 @@ func addLeafNode(pt *parser.PlanTree, current_leaf int64, newLeafNode parser.Pla
 	pt.NodeNum++
 }
 
-func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
+func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, parentID int64) {
 	// fmt.Println(" *********** BEGIN NODE : ", beginNode)
 
 	f := func(c rune) bool {
@@ -140,6 +140,10 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 	}
 
 	node := &pt.Nodes[beginNode]
+	if node.Parent != parentID {
+		return
+	}
+
 	switch node.NodeType {
 	case -2: // tmp leaf node
 		return
@@ -152,7 +156,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		// }
 		if pt.Nodes[node.Parent].NodeType == 5 && !CheckSelectAll(node.Rel_cols, parentCols) { // add projection node if parent node is Union, because union node doesn't contain filter
 			AddProjectionNodeAboveTable(pt, parser.CreateProjectionNode(pt.GetTmpTableName(), parentCols), beginNode)
-			prune_columns(pt, pt.Nodes[node.Parent].Nodeid, pt.Nodes[node.Parent].Cols)
+			prune_columns(pt, pt.Nodes[node.Parent].Nodeid, pt.Nodes[node.Parent].Cols, pt.Nodes[node.Parent].Parent)
 		}
 
 	case 2:
@@ -175,7 +179,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 			node.ExecStmtCols = ""
 		}
 		// fmt.Println("node.Cols = ", node.Cols, "node.Where=", node.Where)
-		prune_columns(pt, pt.Nodes[node.Left].Nodeid, used)
+		prune_columns(pt, pt.Nodes[node.Left].Nodeid, used, beginNode)
 
 	case 3:
 		// projection
@@ -206,7 +210,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		} else {
 			node.Cols = ""
 		}
-		prune_columns(pt, pt.Nodes[node.Left].Nodeid, node.Cols)
+		prune_columns(pt, pt.Nodes[node.Left].Nodeid, node.Cols, beginNode)
 
 	case 4:
 		// join
@@ -256,6 +260,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 
 		node.ExecStmtCols = node.Cols
 		node.ExecStmtWhere = node.Where
+		// fmt.Println("node.ExecStmtWhere (left before) = ", node.ExecStmtWhere)
 		// inefficient for big tables
 		for _, col := range usedCols {
 			// fmt.Println("col=", col)
@@ -284,6 +289,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 					} else {
 						node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[0], -1)
 					}
+					// fmt.Println("node.ExecStmtWhere (after) = ", node.ExecStmtWhere)
 
 					break
 				}
@@ -297,18 +303,19 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 
 					// check if rcol is inside of whereClause
 					if _, ok := whereCols[rcol]; ok {
-						// fmt.Println("node.ExecStmtWhere = ", node.ExecStmtWhere)
+						// fmt.Println("node.ExecStmtWhere (right before) = ", node.ExecStmtWhere)
 						// fmt.Println("tableCol = ", tableCol)
 						// fmt.Println("rcol = ", rcol)
 						if len(tableCol) == 2 {
 							node.ExecStmtWhere = strings.ReplaceAll(node.ExecStmtWhere, rcol, rightTmpTable+"."+tableCol[1])
-							// fmt.Println("node.ExecStmtWhere = ", node.ExecStmtWhere)
+							// fmt.Println("node.ExecStmtWhere (after) = ", node.ExecStmtWhere)
 							// if col == "customer.id" {
 							// 	os.Exit(0)
 							// }
 
 						} else if len(tableCol) == 1 {
 							node.ExecStmtWhere = strings.ReplaceAll(node.ExecStmtWhere, rcol, rightTmpTable+"."+tableCol[0])
+							// fmt.Println("node.ExecStmtWhere (after) = ", node.ExecStmtWhere)
 						}
 					}
 
@@ -331,8 +338,8 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 			node.Cols = ""
 			node.ExecStmtCols = ""
 		}
-		prune_columns(pt, pt.Nodes[node.Left].Nodeid, subsetLeft)
-		prune_columns(pt, pt.Nodes[node.Right].Nodeid, subsetRight)
+		prune_columns(pt, pt.Nodes[node.Left].Nodeid, subsetLeft, beginNode)
+		prune_columns(pt, pt.Nodes[node.Right].Nodeid, subsetRight, beginNode)
 
 	case 5:
 		// union
@@ -389,9 +396,9 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 		subsetLeft = strings.TrimSuffix(subsetLeft, ",")
 		subsetRight = strings.TrimSuffix(subsetRight, ",")
 
-		fmt.Println(node.Cols)
+		// fmt.Println(node.Cols)
 		if CheckSelectAll(node.Rel_cols, node.Cols) {
-			fmt.Println("select all")
+			// fmt.Println("select all")
 			node.Cols = ""
 			node.ExecStmtCols = ""
 
@@ -416,8 +423,8 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string) {
 			// 	rightTmpTable = NewTableName
 			// }
 		}
-		prune_columns(pt, pt.Nodes[node.Left].Nodeid, subsetLeft)
-		prune_columns(pt, pt.Nodes[node.Right].Nodeid, subsetRight)
+		prune_columns(pt, pt.Nodes[node.Left].Nodeid, subsetLeft, beginNode)
+		prune_columns(pt, pt.Nodes[node.Right].Nodeid, subsetRight, beginNode)
 
 	default:
 		// fmt.Println("!!!! Default !!!!")
@@ -485,10 +492,18 @@ func RootFilterRename(pt *parser.PlanTree) *parser.PlanTree {
 		return (c == ',' || c == ' ')
 	}
 	cols := strings.FieldsFunc(pt.Nodes[pt.Root].ExecStmtCols, f)
+	tableColMap := make(map[string]int, 0)
 	for i, col := range cols {
 		tableCol := strings.Split(col, ".")
 		if len(tableCol) == 2 {
-			cols[i] += " as " + tableCol[1] // alias
+			if _, ok := tableColMap[tableCol[1]]; !ok {
+				cols[i] += " as " + tableCol[1] // alias
+				tableColMap[tableCol[1]] = 1
+			} else {
+				cols[i] += " as " + tableCol[1] + strconv.Itoa(tableColMap[tableCol[1]]) // alias
+				tableColMap[tableCol[1]] += 1
+			}
+
 		}
 		// else {
 		// 	// do something
@@ -501,6 +516,6 @@ func RootFilterRename(pt *parser.PlanTree) *parser.PlanTree {
 func PruneColumns(pt *parser.PlanTree) *parser.PlanTree {
 	// fmt.Println("!!!! Column Pruning !!!!")
 	// pt.Print()
-	prune_columns(pt, pt.Root, "")
+	prune_columns(pt, pt.Root, "", int64(-1))
 	return pt
 }

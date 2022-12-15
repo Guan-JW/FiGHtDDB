@@ -40,7 +40,9 @@ func findEmptyNode(pt *parser.PlanTree) int64 {
 // 把节点加在输入节点的上方
 func addWhereNodeOnTop(pt *parser.PlanTree, newNode parser.PlanTreeNode, nodeid int64) {
 	// if pt.Nodes[nodeid].NodeType == 4 && pt.Nodes[nodeid].Joint_type == 0 { // x join
+
 	if pt.Nodes[nodeid].NodeType == 4 {
+		// fmt.Println("Here!!!! left =", pt.Nodes[nodeid].Left, "; right = ", pt.Nodes[nodeid].Right)
 		// pt.Nodes[nodeid].Joint_type = 1 // 此时where子句为a=b（？），转变成等值连接
 		pt.Nodes[nodeid].Where = newNode.Where
 	} else {
@@ -134,8 +136,10 @@ func checkCols(parentWhere string, childrelColsinComma string) bool {
 	return true
 }
 
-func tryPushDown(pt *parser.PlanTree, subWhere string, beginNode int64) {
-	// fmt.Println("subWhere=", subWhere, "beginNode=", beginNode)
+func tryPushDown(pt *parser.PlanTree, subWhere string, beginNode int64, parentID int64) {
+	if pt.Nodes[beginNode].Parent != parentID { // skip node with multiple edges (leave only one edge)
+		return
+	}
 
 	pos := find2ChildNode(pt, beginNode)
 	if pos == -1 { //若为-1则说明没有两个孩子的节点，只能加在curPos上，此时beginNode为selection类型
@@ -144,14 +148,15 @@ func tryPushDown(pt *parser.PlanTree, subWhere string, beginNode int64) {
 		flag1 := checkCols(subWhere, pt.Nodes[pt.Nodes[pos].Left].Rel_cols)
 		flag2 := checkCols(subWhere, pt.Nodes[pt.Nodes[pos].Right].Rel_cols)
 		if !flag1 && !flag2 { // 此时where子句为（ a=b 型等值？）连接
+			// fmt.Println("left = ", pt.Nodes[pos].Left, "; right = ", pt.Nodes[pos].Right)
 			addWhereNodeOnTop(pt, parser.CreateSelectionNode(pt.GetTmpTableName(), subWhere), pos)
 		}
 		// os.Exit(0)
 		if flag1 {
-			tryPushDown(pt, subWhere, pt.Nodes[pos].Left)
+			tryPushDown(pt, subWhere, pt.Nodes[pos].Left, pos)
 		}
 		if flag2 {
-			tryPushDown(pt, subWhere, pt.Nodes[pos].Right)
+			tryPushDown(pt, subWhere, pt.Nodes[pos].Right, pos)
 		}
 	}
 }
@@ -169,13 +174,18 @@ func SelectionPushDown(pt *parser.PlanTree) *parser.PlanTree {
 			//按照and分割where子句
 			//方法：先按照空格分割，然后检测and来组合
 			wheres := strings.Split(node.Where, "and")
+			// wheres := strings.Split("book.copies > 100", "and")
 			for _, subWhere := range wheres {
 				subWhere = "where  " + subWhere
-				tryPushDown(pt, subWhere, node.Nodeid)
+				// fmt.Println("subWhere = ", subWhere)
+				// pt.Print()
+				tryPushDown(pt, subWhere, node.Nodeid, node.Parent)
+				// pt.Print()
+				// return pt
 			}
 			deleteWhereNode(pt, node.Nodeid)
+			break
 		}
-
 	}
 
 	for i, node := range pt.Nodes {

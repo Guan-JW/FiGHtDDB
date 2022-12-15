@@ -79,7 +79,7 @@ func (pt *PlanTree) Print() {
 			continue
 		}
 		// fmt.Println(node)
-		fmt.Println("Id=", node.Nodeid, "; Type:", node.NodeType, ";Locate", node.Locate, "; where:", node.Where, "; ExecStmtWhere:", node.ExecStmtWhere, "; Rel_cols:", node.Rel_cols, "; Cols:", node.Cols, "; ExecStmtCols:", node.ExecStmtCols, "; TmpTable:", node.TmpTable, "; Left:", node.Left, ";Right:", node.Right)
+		fmt.Println("Id=", node.Nodeid, "; Type:", node.NodeType, ";Locate", node.Locate, "; where:", node.Where, "; Rel_cols:", node.Rel_cols, "; Cols:", node.Cols, "; TmpTable:", node.TmpTable, "; Left:", node.Left, ";Right:", node.Right, ";Parent:", node.Parent)
 	}
 	return
 }
@@ -133,9 +133,10 @@ func (pt *PlanTree) GetTmpTableName() (TmpTableName string) {
 	return TmpTableName
 }
 
-func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Node {
+func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64, id *int) *cgraph.Node {
 	node := pt.Nodes[node_id]
-	n, err := graph.CreateNode(node.TmpTable)
+	n, err := graph.CreateNode(node.TmpTable + "-" + strconv.Itoa(*id))
+	*id++
 	// fmt.Println("Cols = ", node.Cols)
 	// fmt.Println("Where = ", node.Where)
 	// fmt.Println("ExecCols = ", node.ExecStmtCols)
@@ -160,7 +161,9 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		if node.TransferFlag {
 			createString += "\nTransfer"
 		}
-		n, err = graph.CreateNode(createString)
+		n, err = graph.CreateNode(createString + "-" + strconv.Itoa(*id))
+		n.SetLabel(createString)
+		*id++
 
 		if err != nil {
 			log.Fatal(err)
@@ -182,11 +185,11 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		}
 		n.SetLabel(labelString)
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNode(graph, node.Left)
+			left_node := pt.DrawTreeNode(graph, node.Left, id)
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
-			right_node := pt.DrawTreeNode(graph, node.Right)
+			right_node := pt.DrawTreeNode(graph, node.Right, id)
 			graph.CreateEdge("", n, right_node)
 		}
 	case 3:
@@ -203,7 +206,7 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 
 		n.SetLabel(label)
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNode(graph, node.Left)
+			left_node := pt.DrawTreeNode(graph, node.Left, id)
 			graph.CreateEdge("", n, left_node)
 		}
 	case 4:
@@ -216,7 +219,7 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		}
 
 		if node.Where == "" {
-			label += "Cartesian"
+			label += "Equal Join"
 		} else {
 			label += node.Where
 		}
@@ -226,11 +229,11 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		n.SetLabel(label)
 
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNode(graph, node.Left)
+			left_node := pt.DrawTreeNode(graph, node.Left, id)
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
-			right_node := pt.DrawTreeNode(graph, node.Right)
+			right_node := pt.DrawTreeNode(graph, node.Right, id)
 			graph.CreateEdge("", n, right_node)
 		}
 	case 5:
@@ -248,13 +251,13 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64) *cgraph.Nod
 		n.SetLabel(label)
 
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNode(graph, node.Left)
+			left_node := pt.DrawTreeNode(graph, node.Left, id)
 			// left_node, _ := graph.CreateNode(node.TmpTable)
 			// left_node.SetLabel("left")
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
-			right_node := pt.DrawTreeNode(graph, node.Right)
+			right_node := pt.DrawTreeNode(graph, node.Right, id)
 			// right_node, _ := graph.CreateNode(node.TmpTable)
 			// right_node.SetLabel("left")
 			graph.CreateEdge("", n, right_node)
@@ -289,7 +292,8 @@ func (planTree *PlanTree) DrawPlanTree(query_id int, postfix string) {
 		g.Close()
 	}()
 
-	planTree.DrawTreeNode(graph, planTree.Root)
+	id := 0
+	planTree.DrawTreeNode(graph, planTree.Root, &id)
 
 	// 1. write encoded PNG data to buffer
 	var buf bytes.Buffer
@@ -322,9 +326,10 @@ func (planTree *PlanTree) DrawPlanTree(query_id int, postfix string) {
 	}
 }
 
-func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cgraph.Node {
+func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64, id *int) *cgraph.Node {
 	node := pt.Nodes[node_id]
-	n, err := graph.CreateNode(node.TmpTable)
+	n, err := graph.CreateNode(node.TmpTable + "-" + strconv.Itoa(*id))
+	*id++
 	if err != nil {
 		log.Fatal(err)
 		// do something with error
@@ -345,7 +350,9 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		if node.TransferFlag {
 			createString += "\nTransfer"
 		}
-		n, err = graph.CreateNode(createString)
+		n, err = graph.CreateNode(createString + "-" + strconv.Itoa(*id))
+		n.SetLabel(createString)
+		*id++
 
 		if err != nil {
 			log.Fatal(err)
@@ -368,11 +375,11 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		n.SetLabel(label)
 
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNode(graph, node.Left)
+			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left, id)
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
-			right_node := pt.DrawTreeNode(graph, node.Right)
+			right_node := pt.DrawTreeNodeTmpTable(graph, node.Right, id)
 			graph.CreateEdge("", n, right_node)
 		}
 	case 3:
@@ -388,7 +395,7 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		}
 		n.SetLabel(label)
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left)
+			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left, id)
 			graph.CreateEdge("", n, left_node)
 		}
 	case 4:
@@ -401,7 +408,7 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		}
 
 		if node.ExecStmtWhere == "" {
-			label += "Cartesian\nTmpTable: " + node.TmpTable
+			label += "Equal Join\nTmpTable: " + node.TmpTable
 		} else {
 			label += node.ExecStmtWhere + "\nTmpTable: " + node.TmpTable
 		}
@@ -411,11 +418,11 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		n.SetLabel(label)
 
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left)
+			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left, id)
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
-			right_node := pt.DrawTreeNodeTmpTable(graph, node.Right)
+			right_node := pt.DrawTreeNodeTmpTable(graph, node.Right, id)
 			graph.CreateEdge("", n, right_node)
 		}
 	case 5:
@@ -432,13 +439,13 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64) *cg
 		n.SetLabel(label)
 
 		if node.Left != -1 {
-			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left)
+			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left, id)
 			// left_node, _ := graph.CreateNode(node.TmpTable)
 			// left_node.SetLabel("left")
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
-			right_node := pt.DrawTreeNodeTmpTable(graph, node.Right)
+			right_node := pt.DrawTreeNodeTmpTable(graph, node.Right, id)
 			// right_node, _ := graph.CreateNode(node.TmpTable)
 			// right_node.SetLabel("left")
 			graph.CreateEdge("", n, right_node)
@@ -473,7 +480,8 @@ func (planTree *PlanTree) DrawPlanTreeTmpTable(query_id int, postfix string) {
 		g.Close()
 	}()
 
-	planTree.DrawTreeNodeTmpTable(graph, planTree.Root)
+	id := 0
+	planTree.DrawTreeNodeTmpTable(graph, planTree.Root, &id)
 
 	// 1. write encoded PNG data to buffer
 	var buf bytes.Buffer
