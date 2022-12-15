@@ -79,7 +79,7 @@ func (pt *PlanTree) Print() {
 			continue
 		}
 		// fmt.Println(node)
-		fmt.Println("Id=", node.Nodeid, "; Type:", node.NodeType, ";Locate", node.Locate, "; where:", node.Where, "; Rel_cols:", node.Rel_cols, "; Cols:", node.Cols, "; TmpTable:", node.TmpTable, "; Left:", node.Left, ";Right:", node.Right)
+		fmt.Println("Id=", node.Nodeid, "; Type:", node.NodeType, ";Locate", node.Locate, "; where:", node.Where, "; ExecStmtWhere:", node.ExecStmtWhere, "; Rel_cols:", node.Rel_cols, "; Cols:", node.Cols, "; ExecStmtCols:", node.ExecStmtCols, "; TmpTable:", node.TmpTable, "; Left:", node.Left, ";Right:", node.Right)
 	}
 	return
 }

@@ -78,7 +78,7 @@ func ExecRemoteSql(sqlStr string, addr string) int {
 	defer conn.Close()
 
 	c := pb.NewDataBaseClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	r, err := c.ExecSql(ctx, &pb.SqlRequest{SqlStr: sqlStr})
@@ -125,7 +125,7 @@ func ExecRemoteSelect(sqlStr string, addr string) string {
 	defer conn.Close()
 
 	c := pb.NewDataBaseClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	r, err := c.ExecSelect(ctx, &pb.SqlRequest{SqlStr: sqlStr})
@@ -193,7 +193,7 @@ func GetRemoteSchema(sqlStr string, addr string) string {
 	defer conn.Close()
 
 	c := pb.NewDataBaseClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	r, err := c.GetSchema(ctx, &pb.SqlRequest{SqlStr: sqlStr})

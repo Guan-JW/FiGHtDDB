@@ -23,15 +23,17 @@ type Server struct {
 
 func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {
 	fmt.Println("server", in.SqlStr)
+	fmt.Println("sql end")
 	txnId := storage.GetTid()
 	planTree := parser.Parse(in.SqlStr, txnId)
 	planTree.Analyze()
 	planTree = optimizer.Optimize(planTree)
-	res := executor.Execute(planTree)
+	res, resLen := executor.Execute(planTree)
 
 	// TODO: execute planTree
+	fmt.Println(resLen)
 	fmt.Println(res)
-	return &pb.SqlResult{Rc: 0, Data: res}, nil
+	return &pb.SqlResult{Data: res, Rc: int32(resLen)}, nil
 }
 
 func (s *Server) ExecSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult, error) {

@@ -108,6 +108,11 @@ func main() {
 	and orders.quantity>1 
 	and publisher.nation='PRC'
 	`
+	queries[11] = `
+	select * 
+	from publisher 
+	where publisher.nation = 'USA'
+	`
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -121,7 +126,7 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
-		if id < 0 || id > 10 {
+		if id < 0 || id > 11 {
 			fmt.Println("id should be in the range[0,10]")
 			continue
 		}
@@ -131,6 +136,7 @@ func main() {
 		if err != nil {
 			log.Fatal("failed to parse: ", err)
 		}
+		fmt.Println(r.Rc)
 		fmt.Println(r.Data)
 		// printTree(planTree)
 	}

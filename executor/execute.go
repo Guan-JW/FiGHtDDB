@@ -119,21 +119,7 @@ func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 
 	executeOperator(node, tree, resp)
 
-	// handle current node
-	// switch node := node.(type) {
-	// case *parser.ScanOperator:
-	// 	executeScanOperator(node, resp)
-	// case *parser.UnionOperator:
-	// 	executeUnionOperatpr(node, resp, &resp1, &resp2)
-	// default:
-	// 	log.Fatal("Unimpletemented node type")
-	// }
 }
-
-// func executeUnionOperatpr(node *parser.UnionOperator, resp *[]byte, respLeftChild *[]byte, respRightChild *[]byte) {
-// 	*resp = append(*resp, *respLeftChild...)
-// 	*resp = append(*resp, *respRightChild...)
-// }
 
 func CleanTmpTable(node parser.PlanTreeNode) {
 	//清理main的tmptable
@@ -147,7 +133,7 @@ func CleanTmpTable(node parser.PlanTreeNode) {
 		tablename := node.TmpTable
 
 		// TODO: assert(plan_node.Right = -1)
-		// fmt.Println("main drop table:", tablename)
+		fmt.Println("main drop table:", tablename)
 		sqlStr := "drop table if exists " + tablename
 
 		stmt, _ := client.Prepare(sqlStr) //err
@@ -162,7 +148,7 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
-	fmt.Println("scan client:", err)
+	fmt.Println("SP client:", err)
 
 	var sqlStr string
 	tableName := tree.Nodes[node.Left].TmpTable
@@ -172,6 +158,10 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 
 		sqlStr = "create table " + node.TmpTable + " as select " + node.ExecStmtCols + " from " + tableName
 
+	}
+	if node.ExecStmtWhere != "" {
+		sqlStr += " " + node.ExecStmtWhere
+		fmt.Println("wheresql:", sqlStr)
 	}
 
 	ServerName := storage.ServerName()
@@ -214,8 +204,10 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println(res)
 
-		res3 := storage.ExecRemoteSql("drop table if exiss "+tableName+";", address)
-		fmt.Println(node.Locate, "left drop", res3)
+		if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
+			res3 := storage.ExecRemoteSql("drop table if exiss "+tableName+";", address)
+			fmt.Println(node.Locate, "left drop", res3)
+		}
 
 	}
 
@@ -296,6 +288,7 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 		}
 
 		if tree.Nodes[node.Right].Locate != ServerName {
+			fmt.Println("union right", tree.Nodes[node.Right].TmpTable, tree.Nodes[node.Right].Locate)
 			getTmpTable(tree.Nodes[node.Right], rightAddr)
 
 			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
@@ -324,7 +317,9 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 			fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
 		}
 
+		fmt.Println("right locage:", tree.Nodes[node.Right].Locate != node.Locate)
 		if tree.Nodes[node.Right].NodeType != 1 || tree.Nodes[node.Right].Locate != node.Locate {
+			fmt.Println(tree.Nodes[node.Right].TmpTable)
 			getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
 
 			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
@@ -333,11 +328,17 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println(res)
+		fmt.Println(leftTableName, rightTableName)
 
-		res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
-		fmt.Println(node.Locate, "left drop", res3)
-		res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
-		fmt.Println(node.Locate, "right drop", res4)
+		if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
+			res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
+			fmt.Println(node.Locate, "left drop", res3)
+		}
+		if !(tree.Nodes[node.Right].NodeType == 1 && tree.Nodes[node.Right].Left == -1) {
+			res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
+			fmt.Println(node.Locate, "right drop", res4)
+		}
+
 	}
 
 }
@@ -362,8 +363,10 @@ func getTmpTable(node parser.PlanTreeNode, address string) {
 	fmt.Println("tmp create", res, err)
 
 	insertQuery := "insert into " + tableName + " values "
-	query := "select * from " + tableName
+	query := "select * from " + tableName + " ;"
+	fmt.Println("before exec remote select")
 	insertPlus := storage.ExecRemoteSelect(query, address)
+	fmt.Println("after")
 
 	insertQuery += insertPlus + ";"
 
@@ -379,20 +382,24 @@ func getRemoteTmpTable(node parser.PlanTreeNode, address string, dest string) {
 	tableName := node.TmpTable
 
 	tableName = strings.ToLower(tableName)
+	fmt.Println(tableName)
 	CreateSql := storage.GetRemoteSchema(tableName, address)
 
 	CreateSql = strings.Replace(CreateSql, "integer(32)", "integer", -1)
 	CreateSql = strings.Replace(CreateSql, "integer(64)", "integer", -1)
 	CreateSql = strings.Replace(CreateSql, ", );", " );", -1)
+	// fmt.Println("rtmptable", CreateSql)
 
 	res := storage.ExecRemoteSql(CreateSql, dest)
 	fmt.Println("tmp,", res)
 
 	insertQuery := "insert into " + tableName + " values "
-	query := "select * from " + tableName
+	query := "select * from " + tableName + " ;"
+	fmt.Println("get insert")
 	insertPlus := storage.ExecRemoteSelect(query, address)
+	// fmt.Println("get done insert", insertPlus[:300])
 	insertQuery += insertPlus + ";"
-	res2 := storage.ExecRemoteSql(query, dest)
+	res2 := storage.ExecRemoteSql(insertQuery, dest)
 	fmt.Println("tmp insert", res2)
 
 }
@@ -411,14 +418,16 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 	if node.ExecStmtCols != "" {
 		Cols = node.ExecStmtCols
 	}
+	fmt.Println("cols:", Cols)
 	if node.ExecStmtWhere == "" {
 		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " natural join " + rightTableName + ";"
 
 	} else {
-		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " natural join " + rightTableName + " " + node.ExecStmtWhere + ";"
+		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " , " + rightTableName + " " + node.ExecStmtWhere + ";"
 
 	}
 
+	fmt.Println("join sql", sqlStr)
 	ServerName := storage.ServerName()
 	if node.Locate == ServerName {
 		leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
@@ -445,9 +454,9 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		fmt.Println("join exec:", err)
 		println(res)
 
-		// fmt.Println("main will drop", tree.Nodes[node.Left].TmpTable)
+		fmt.Println("main will drop", tree.Nodes[node.Left].TmpTable)
 		CleanTmpTable(tree.Nodes[node.Left])
-		// fmt.Println("main will drop", tree.Nodes[node.Right].TmpTable)
+		fmt.Println("main will drop", tree.Nodes[node.Right].TmpTable)
 		CleanTmpTable(tree.Nodes[node.Right])
 	} else {
 
@@ -461,10 +470,8 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
 		}
 
-		getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
-
 		if tree.Nodes[node.Right].NodeType != 1 || tree.Nodes[node.Right].Locate != node.Locate {
-
+			getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
 			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", leftAddr)
 			fmt.Println(tree.Nodes[node.Right].Locate, "right drop", res2)
 		}
@@ -472,10 +479,14 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println(res)
 
-		res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
-		fmt.Println(node.Locate, "left drop", res3)
-		res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
-		fmt.Println(node.Locate, "right drop", res4)
+		if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
+			res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
+			fmt.Println(node.Locate, "left drop", res3)
+		}
+		if !(tree.Nodes[node.Right].NodeType == 1 && tree.Nodes[node.Right].Left == -1) {
+			res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
+			fmt.Println(node.Locate, "right drop", res4)
+		}
 	}
 
 	// client.Close()
@@ -615,18 +626,18 @@ func executeOperator(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuple
 
 }
 
-func printResult(tree *parser.PlanTree) string {
+func printResult(tree *parser.PlanTree) []string {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
 
-	// result := make([]string, 0)
-	var result string
+	result := make([]string, 0)
+	// var result string
 	node := tree.Nodes[tree.Root]
 
 	query := "select * from " + node.TmpTable
-	println(query)
+	println("PrintResult:", query)
 	rows, _ := client.Query(query)
-
+	// fmt.Println(rows)
 	colTypes, _ := rows.ColumnTypes()
 
 	types := make([]reflect.Type, len(colTypes))
@@ -644,9 +655,9 @@ func printResult(tree *parser.PlanTree) string {
 	for rows.Next() {
 		var res string
 		// todo: 只插入前100条，之后需要修改
-		if i > 10 {
-			break
-		}
+		// if i > 10 {
+		// 	break
+		// }
 		// todo: 只插入前100条，之后需要修改
 		_ = rows.Scan(values...)
 
@@ -662,8 +673,8 @@ func printResult(tree *parser.PlanTree) string {
 		}
 		// fmt.Println(" ")
 		res += " "
-		result += res + "\n"
-		// result = append(result, res)
+		// result += res + "\n"
+		result = append(result, res)
 		i++
 	}
 	CleanTmpTable(node)
@@ -688,7 +699,7 @@ func printTree(node parser.PlanTreeNode, tree *parser.PlanTree, num int32) {
 	}
 
 }
-func Execute(tree *parser.PlanTree) string {
+func Execute(tree *parser.PlanTree) (string, int) {
 	// printTree(tree.Nodes[tree.Root], tree, 0)
 	// tree.Print()
 
@@ -699,8 +710,18 @@ func Execute(tree *parser.PlanTree) string {
 
 	executeNode(tree.Nodes[tree.Root], tree, resp)
 	result := printResult(tree)
-	// result := make([]string, 0)
-	// result = append(result, "abc")
-
-	return result
+	resultLen := len(result)
+	var resultStr string
+	i := 0
+	for _, a := range result {
+		if i > 10 {
+			break
+		}
+		resultStr += a + "\n"
+		i += 1
+	}
+	// resultStr := "test"
+	// resultLen := 0
+	// tree.Print()
+	return resultStr, resultLen
 }
