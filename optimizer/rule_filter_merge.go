@@ -321,7 +321,7 @@ func merge_filters(pt *parser.PlanTree, beginNode int64, parentID int64) {
 			pt.Nodes[node.Left].TmpTable = NewTableName
 			addLeafNode(pt, node.Left, CreateLeafNode(leftTmpTable))
 			leftTmpTable = NewTableName
-			node.Status = 0
+			// node.Status = 0
 		} else if pt.Nodes[node.Right].Left == -1 && pt.Nodes[node.Right].TransferFlag {
 			// fmt.Println("transfer right")
 			// fmt.Println("table = ", pt.Nodes[node.Right].TmpTable)
@@ -329,7 +329,7 @@ func merge_filters(pt *parser.PlanTree, beginNode int64, parentID int64) {
 			pt.Nodes[node.Right].TmpTable = NewTableName
 			addLeafNode(pt, node.Right, CreateLeafNode(rightTmpTable))
 			rightTmpTable = NewTableName
-			node.Status = 0
+			// node.Status = 0
 		}
 	}
 }

@@ -525,7 +525,7 @@ func (planTree *PlanTree) DrawPlanTreeTmpTable(query_id int, postfix string) {
 	}()
 
 	if planTree.Nodes[planTree.Root].NodeType == 6 { // insert
-		for i := planTree.Root; i <= int64(planTree.NodeNum); i++ {
+		for i := int64(1); i <= int64(planTree.NodeNum); i++ {
 			node := planTree.Nodes[i]
 			_, err := graph.CreateNode("insert into " + node.TmpTable + " (" + node.ExecStmtCols + ")\nvalues (" + node.Cols + ")\nSite: " + node.Locate)
 			if err != nil {
