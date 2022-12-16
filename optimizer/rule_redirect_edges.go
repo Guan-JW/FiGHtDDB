@@ -96,6 +96,8 @@ func redirect(pt *parser.PlanTree, NodeID int64, ParentID int64) {
 }
 
 func RedirectEdges(pt *parser.PlanTree) *parser.PlanTree {
-	redirect(pt, pt.Root, int64(-1))
+	if pt.Root >= 0 && pt.Nodes[pt.Root].NodeType < 6 {
+		redirect(pt, pt.Root, int64(-1))
+	}
 	return pt
 }

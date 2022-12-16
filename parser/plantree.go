@@ -29,7 +29,7 @@ type PlanTreeNode struct {
 	Locate       string // site name
 	TransferFlag bool   // 1 for transer, 0 for not
 	Dest         string // the site name of the dest
-	NodeType     int64  // 1 for table, 2 for select, 3 for projection, 4 for join, 5 for union
+	NodeType     int64  // 1 for table, 2 for select, 3 for projection, 4 for join, 5 for union, 6 for insert, 7 for delete
 	//detail string//according to node_type, (1)table_name for table, (2)where_condition for select, (3)col_name for projection, (4)join_type for join, (5)nil for union
 	Where         string
 	Rel_cols      string // split(",",s)   !!!!
@@ -252,14 +252,21 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64, id *int) *c
 
 		if node.Left != -1 {
 			left_node := pt.DrawTreeNode(graph, node.Left, id)
-			// left_node, _ := graph.CreateNode(node.TmpTable)
-			// left_node.SetLabel("left")
 			graph.CreateEdge("", n, left_node)
 		}
 		if node.Right != -1 {
 			right_node := pt.DrawTreeNode(graph, node.Right, id)
-			// right_node, _ := graph.CreateNode(node.TmpTable)
-			// right_node.SetLabel("left")
+			graph.CreateEdge("", n, right_node)
+		}
+	case 7:
+		label := "Delete\n" + "delete from " + node.TmpTable + "\n" + node.ExecStmtWhere + "\nLocate: " + node.Locate
+		n.SetLabel(label)
+		if node.Left != -1 {
+			left_node := pt.DrawTreeNode(graph, node.Left, id)
+			graph.CreateEdge("", n, left_node)
+		}
+		if node.Right != -1 {
+			right_node := pt.DrawTreeNode(graph, node.Right, id)
 			graph.CreateEdge("", n, right_node)
 		}
 	default:
@@ -280,6 +287,10 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64, id *int) *c
 }
 
 func (planTree *PlanTree) DrawPlanTree(query_id int, postfix string) {
+	if planTree.Root < 0 {
+		return
+	}
+
 	g := graphviz.New()
 	graph, err := g.Graph()
 	if err != nil {
@@ -292,8 +303,26 @@ func (planTree *PlanTree) DrawPlanTree(query_id int, postfix string) {
 		g.Close()
 	}()
 
-	id := 0
-	planTree.DrawTreeNode(graph, planTree.Root, &id)
+	if planTree.Nodes[planTree.Root].NodeType == 6 { // insert
+		for i := planTree.Root; i <= int64(planTree.NodeNum); i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode("insert into " + node.TmpTable + " (" + node.ExecStmtCols + ")\nvalues (" + node.Cols + ")\nSite: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+	} else if planTree.Nodes[planTree.Root].NodeType == 7 { // delete
+		id := 0
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			if planTree.Nodes[i].NodeType == 7 {
+				planTree.DrawTreeNode(graph, i, &id)
+			}
+		}
+	} else {
+		id := 0
+		planTree.DrawTreeNode(graph, planTree.Root, &id)
+	}
 
 	// 1. write encoded PNG data to buffer
 	var buf bytes.Buffer
@@ -450,6 +479,18 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64, id 
 			// right_node.SetLabel("left")
 			graph.CreateEdge("", n, right_node)
 		}
+
+	case 7:
+		label := "Delete\n" + "delete from " + node.TmpTable + "\n" + node.ExecStmtWhere + "\nLocate: " + node.Locate
+		n.SetLabel(label)
+		if node.Left != -1 {
+			left_node := pt.DrawTreeNodeTmpTable(graph, node.Left, id)
+			graph.CreateEdge("", n, left_node)
+		}
+		if node.Right != -1 {
+			right_node := pt.DrawTreeNodeTmpTable(graph, node.Right, id)
+			graph.CreateEdge("", n, right_node)
+		}
 	default:
 		// should never reach here
 	}
@@ -468,6 +509,9 @@ func (pt *PlanTree) DrawTreeNodeTmpTable(graph *cgraph.Graph, node_id int64, id 
 }
 
 func (planTree *PlanTree) DrawPlanTreeTmpTable(query_id int, postfix string) {
+	if planTree.Root < 0 { // nothing to draw
+		return
+	}
 	g := graphviz.New()
 	graph, err := g.Graph()
 	if err != nil {
@@ -480,8 +524,26 @@ func (planTree *PlanTree) DrawPlanTreeTmpTable(query_id int, postfix string) {
 		g.Close()
 	}()
 
-	id := 0
-	planTree.DrawTreeNodeTmpTable(graph, planTree.Root, &id)
+	if planTree.Nodes[planTree.Root].NodeType == 6 { // insert
+		for i := planTree.Root; i <= int64(planTree.NodeNum); i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode("insert into " + node.TmpTable + " (" + node.ExecStmtCols + ")\nvalues (" + node.Cols + ")\nSite: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+	} else if planTree.Nodes[planTree.Root].NodeType == 7 { // delete
+		id := 0
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			if planTree.Nodes[i].NodeType == 7 {
+				planTree.DrawTreeNodeTmpTable(graph, i, &id)
+			}
+		}
+	} else {
+		id := 0
+		planTree.DrawTreeNodeTmpTable(graph, planTree.Root, &id)
+	}
 
 	// 1. write encoded PNG data to buffer
 	var buf bytes.Buffer

@@ -169,6 +169,11 @@ func deleteWhereNode(pt *parser.PlanTree, nodeid int64) {
 }
 
 func SelectionPushDown(pt *parser.PlanTree) *parser.PlanTree {
+	if pt.Root < 0 {
+		return pt
+	} else if pt.Nodes[pt.Root].NodeType >= 6 {
+		return pt
+	}
 	for _, node := range pt.Nodes {
 		if node.NodeType == 2 {
 			//按照and分割where子句

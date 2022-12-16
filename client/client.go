@@ -30,7 +30,7 @@ func main() {
 	defer cancel()
 
 	// hard-cord queries
-	var queries [15]string
+	var queries [25]string
 	queries[0] = `
 	select *
 	from customer`
@@ -109,10 +109,42 @@ func main() {
 	and publisher.nation='PRC'
 	`
 	queries[11] = `
-	select * 
-	from publisher 
-	where publisher.nation = 'USA'
-	`
+	insert into customer(id, name, rank) 
+	values(300001, 'Xiaoming', 1);`
+
+	queries[12] = `
+	insert into publisher(id, name, nation) 
+	values(104001,'High Education Press', 'PRC')`
+
+	queries[13] = `
+	insert into customer(id, name, rank) 
+	values(300002,'Xiaohong', 1)`
+
+	queries[14] = `
+	insert into book (id, title, authors, publisher_id, copies) 
+	values(205001, 'DDB', 'Oszu', 104001, 100)`
+
+	queries[15] = `
+	insert into orders (customer_id, book_id, quantity) 
+	values(300001, 205001,5)`
+
+	queries[16] = `
+	delete from orders`
+
+	queries[17] = `
+	Delete from book 
+	where copies = 100`
+
+	queries[18] = `
+	delete from publisher 
+	where nation = 'PRC'`
+
+	queries[19] = `delete from customer 
+	where name='Xiaohong' AND rank=1`
+
+	queries[20] = `
+	delete from customer 
+	where rank = 1`
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -126,8 +158,8 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
-		if id < 0 || id > 11 {
-			fmt.Println("id should be in the range[0,10]")
+		if id < 0 || id > 20 {
+			fmt.Println("id should be in the range[0,20]")
 			continue
 		}
 		// fmt.Println("ready")

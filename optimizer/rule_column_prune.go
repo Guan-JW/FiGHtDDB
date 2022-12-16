@@ -114,6 +114,7 @@ func CreateLeafNode(TmpTableName string) parser.PlanTreeNode {
 	node := parser.InitialPlanTreeNode()
 	node.NodeType = -2
 	node.TmpTable = TmpTableName
+	node.Status = 1
 	return node
 }
 
@@ -488,6 +489,11 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 // add alias to the root node
 // select xx as xx
 func RootFilterRename(pt *parser.PlanTree) *parser.PlanTree {
+	if pt.Root < 0 {
+		return pt
+	} else if pt.Nodes[pt.Root].NodeType >= 6 {
+		return pt
+	}
 	f := func(c rune) bool {
 		return (c == ',' || c == ' ')
 	}
@@ -516,6 +522,8 @@ func RootFilterRename(pt *parser.PlanTree) *parser.PlanTree {
 func PruneColumns(pt *parser.PlanTree) *parser.PlanTree {
 	// fmt.Println("!!!! Column Pruning !!!!")
 	// pt.Print()
-	prune_columns(pt, pt.Root, "", int64(-1))
+	if pt.Root >= 0 && pt.Nodes[pt.Root].NodeType < 6 {
+		prune_columns(pt, pt.Root, "", int64(-1))
+	}
 	return pt
 }

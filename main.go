@@ -3,10 +3,30 @@ package main
 import (
 	"fmt"
 
+	"github.com/FiGHtDDB/parser"
 	"github.com/FiGHtDDB/storage"
 )
 
-func storeTableMeta() {
+func printTree(node parser.PlanTreeNode, tree *parser.PlanTree, num int32) {
+	fmt.Println(node.TmpTable)
+	if node.Left != -1 {
+		leftNode := tree.Nodes[node.Left]
+		fmt.Println("left: ", leftNode)
+		printTree(leftNode, tree, num+1)
+	} else {
+		fmt.Println("no left node")
+	}
+
+	if node.Right != -1 {
+		rightNode := tree.Nodes[node.Right]
+		fmt.Println("right: ", rightNode)
+		printTree(rightNode, tree, num+1)
+	} else {
+		fmt.Println("no right node")
+	}
+}
+
+func main() {
 	storage.LoadConfig("main")
 
 	var t storage.TableMeta
@@ -156,22 +176,16 @@ func storeTableMeta() {
 		fmt.Println(err)
 		return
 	}
-}
 
-func main() {
-	storeTableMeta()
-	// addr := "10.77.50.209:5601"
-	// conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	// if err != nil {
-	// 	fmt.Println("did not connect: %v", err)
-	// }
-	// defer conn.Close()
+	st, err := storage.GetTableMeta("orders")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
-	// c := pb.NewDataBaseClient(conn)
-	// ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	// defer cancel()
-
-	// query := "select * from book where copies > 5000;"
-	// rc, data := c.ExecSelect(ctx, &pb.SqlRequest{SqlStr: query})
-	// fmt.Println("rc: ", rc, "data: ", data)
+	fmt.Println(st.TableName)
+	fmt.Println(st.FragSchema[0].Cols)
+	fmt.Println(st.FragSchema[3].Conditions[0].Col)
+	fmt.Println(st.FragSchema[1].Conditions[1].Value)
+	fmt.Println(st.FragSchema[2].Conditions[0].Comp)
 }
