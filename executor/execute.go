@@ -44,6 +44,11 @@ type Tuples struct {
 	resp     *[][]byte
 }
 
+var tableList1 = make([]string, 0)
+var tableList2 = make([]string, 0)
+var tableList3 = make([]string, 0)
+var tableList4 = make([]string, 0)
+
 func Strval(value interface{}) string {
 	var key string
 	if value == nil {
@@ -105,22 +110,48 @@ func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 
 	if node.Left != -1 {
 		leftNode := tree.Nodes[node.Left]
-		var resp1 Tuples
-		// fmt.Println("left:", leftNode.TmpTable)
-		executeNode(leftNode, tree, resp1)
+		if leftNode.Status != 1 {
+			var resp1 Tuples
+			// fmt.Println("left:", leftNode.TmpTable)
+			executeNode(leftNode, tree, resp1)
+			leftNode.Status = 1
+		}
+
 	}
 
 	if node.Right != -1 {
 		rightNode := tree.Nodes[node.Right]
-		var resp2 Tuples
-		// fmt.Println("right:", rightNode.TmpTable)
-		executeNode(rightNode, tree, resp2)
+		if rightNode.Status != 1 {
+			var resp2 Tuples
+			// fmt.Println("right:", rightNode.TmpTable)
+			executeNode(rightNode, tree, resp2)
+			rightNode.Status = 1
+		}
+
 	}
 
 	executeOperator(node, tree, resp)
 
 }
+func DropTable(tableName string) {
+	//清理main的tmptable
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+	client, _ := sql.Open("postgres", connStr)
+	// nodeType := node.NodeType
+	// siteName := node.Locate
+	// ServerName := storage.ServerName()
 
+	// TODO: assert(plan_node.Right = -1)
+	fmt.Println("main drop table:", tableName)
+	sqlStr := "drop table if exists " + tableName
+
+	stmt, _ := client.Prepare(sqlStr) //err
+	res, _ := stmt.Exec()             //err
+	println(res)
+
+	// println(res)
+
+}
 func CleanTmpTable(node parser.PlanTreeNode) {
 	//清理main的tmptable
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
@@ -166,50 +197,59 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 
 	ServerName := storage.ServerName()
 	if node.Locate == ServerName {
-		// fmt.Println("SP main")
-		// leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
 
-		// getTmpTable(tree.Nodes[node.Left], leftAddr)
-
-		// leftAddress := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
-
-		// if tree.Nodes[node.Left].NodeType != 1 {
-		// 	res1 := storage.ExecRemoteSql("drop table if exists "+tableName+";", leftAddress)
-		// 	fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
-
-		// }
-
-		// fmt.Println("SP:", sqlStr)
+		// findQuery := "select * from " + node.TmpTable
+		// fmt.Println("SP main", findQuery)
+		// _, fres := client.Query(findQuery)
+		// if fres != nil {
 		stmt, err := client.Prepare(sqlStr) //err
 		fmt.Println("SP prepare:", err)
 		res, err := stmt.Exec() //err
 		fmt.Println("SP exec:", err)
 		println(res)
+		tableList1 = append(tableList1, node.TmpTable)
+		// }
 
 		// fmt.Println("main will drop", tree.Nodes[node.Left].TmpTable)
-		CleanTmpTable(tree.Nodes[node.Left])
+		// CleanTmpTable(tree.Nodes[node.Left])
 
 	} else {
-		// fmt.Println("SP not main")
+		fmt.Println("SP not main", sqlStr)
 		address := storage.GetServerAddress(node.Locate)
-		leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
+		// leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
 
-		getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
-
-		if tree.Nodes[node.Left].NodeType != 1 && tree.Nodes[node.Left].Left != -1 {
-			res1 := storage.ExecRemoteSql("drop table if exiss "+tableName+";", leftAddr)
-			fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
-		}
-
+		// if tree.Nodes[node.Left].NodeType != 1 && tree.Nodes[node.Left].Left != -1 {
+		// 	res1 := storage.ExecRemoteSql("drop table if exiss "+tableName+";", leftAddr)
+		// 	fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
+		// }
+		// findQuery := "select count(*) from pg_class where relname = 'tablename';"
+		// findQuery = strings.Replace(findQuery, "tablename", node.TmpTable, -1)
+		// fmt.Println(findQuery)
+		// fres := storage.ExecRemoteSelect(findQuery, address)
+		// fmt.Println("fres==0:", fres == "0")
+		// if fres == "0" {
+		// getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
+		fmt.Println(sqlStr)
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println(res)
-
-		if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
-			res3 := storage.ExecRemoteSql("drop table if exiss "+tableName+";", address)
-			fmt.Println(node.Locate, "left drop", res3)
+		switch {
+		case node.Locate == "segment1":
+			tableList2 = append(tableList2, node.TmpTable)
+			break
+		case node.Locate == "segment2":
+			tableList2 = append(tableList3, node.TmpTable)
+			break
+		case node.Locate == "segment3":
+			tableList2 = append(tableList4, node.TmpTable)
+			break
 		}
 
 	}
+
+	// if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
+	// 	res3 := storage.ExecRemoteSql("drop table if exiss "+tableName+";", address)
+	// 	fmt.Println(node.Locate, "left drop", res3)
+	// }
 
 }
 
@@ -240,6 +280,7 @@ func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		res, err := stmt.Exec() //err
 		fmt.Println("sel exec:", err)
 		println(res)
+		tableList1 = append(tableList1, node.TmpTable)
 
 		// CleanTmpTable(tree.Nodes[node.Left])
 
@@ -257,7 +298,17 @@ func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println("scan exec remote", res)
-
+		switch {
+		case node.Locate == "segment1":
+			tableList2 = append(tableList2, node.TmpTable)
+			break
+		case node.Locate == "segment2":
+			tableList2 = append(tableList3, node.TmpTable)
+			break
+		case node.Locate == "segment3":
+			tableList2 = append(tableList4, node.TmpTable)
+			break
+		}
 		// res3 := storage.ExecRemoteSql("drop table if exist "+tableName+";", address)
 		// fmt.Println("left drop", res3)
 
@@ -281,18 +332,27 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 		leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
 		rightAddr := storage.GetServerAddress(tree.Nodes[node.Right].Locate)
 		if tree.Nodes[node.Left].Locate != ServerName {
-
-			getTmpTable(tree.Nodes[node.Left], leftAddr)
-			res1 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", leftAddr)
-			fmt.Println("left drop", res1)
+			findQuery := "select * from " + leftTableName
+			_, fres := client.Query(findQuery)
+			if fres != nil {
+				getTmpTable(tree.Nodes[node.Left], leftAddr)
+				tableList1 = append(tableList1, tree.Nodes[node.Left].TmpTable)
+			}
+			// getTmpTable(tree.Nodes[node.Left], leftAddr)
+			// res1 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", leftAddr)
+			// fmt.Println("left drop", res1)
 		}
 
 		if tree.Nodes[node.Right].Locate != ServerName {
-			fmt.Println("union right", tree.Nodes[node.Right].TmpTable, tree.Nodes[node.Right].Locate)
-			getTmpTable(tree.Nodes[node.Right], rightAddr)
+			findQuery := "select * from " + rightTableName
+			_, fres := client.Query(findQuery)
+			if fres != nil {
+				getTmpTable(tree.Nodes[node.Right], rightAddr)
+				tableList1 = append(tableList1, tree.Nodes[node.Right].TmpTable)
+			}
 
-			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
-			fmt.Println("right drop", res2)
+			// res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
+			// fmt.Println("right drop", res2)
 
 		}
 
@@ -302,42 +362,94 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 		res, err := stmt.Exec() //err
 		fmt.Println("union exec:", err)
 		println(res)
+		tableList1 = append(tableList1, node.TmpTable)
 
 		// fmt.Println("main will drop", tree.Nodes[node.Left].TmpTable)
-		CleanTmpTable(tree.Nodes[node.Left])
+		// CleanTmpTable(tree.Nodes[node.Left])
 		// fmt.Println("main will drop", tree.Nodes[node.Right].TmpTable)
-		CleanTmpTable(tree.Nodes[node.Right])
+		// CleanTmpTable(tree.Nodes[node.Right])
 	} else {
 		address := storage.GetServerAddress(node.Locate)
 		leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
 		rightAddr := storage.GetServerAddress(tree.Nodes[node.Right].Locate)
 		if tree.Nodes[node.Left].NodeType != 1 || tree.Nodes[node.Left].Locate != node.Locate {
-			getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
-			res1 := storage.ExecRemoteSql("drop table if exiss "+leftTableName+";", leftAddr)
-			fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
+			findQuery := "select count(*) from pg_class where relname = 'tablename';"
+			findQuery = strings.Replace(findQuery, "tablename", leftTableName, -1)
+
+			fres := storage.ExecRemoteSelect(findQuery, address)
+			fmt.Println(fres == "0")
+			// fmt.Println(fres == 0)
+			if fres == "0" {
+				getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
+			}
+
+			switch {
+			case node.Locate == "segment1":
+				tableList2 = append(tableList2, leftTableName)
+				break
+			case node.Locate == "segment2":
+				tableList2 = append(tableList3, leftTableName)
+				break
+			case node.Locate == "segment3":
+				tableList2 = append(tableList4, leftTableName)
+				break
+			}
+			// res1 := storage.ExecRemoteSql("drop table if exiss "+leftTableName+";", leftAddr)
+			// fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
 		}
 
 		fmt.Println("right locage:", tree.Nodes[node.Right].Locate != node.Locate)
 		if tree.Nodes[node.Right].NodeType != 1 || tree.Nodes[node.Right].Locate != node.Locate {
-			fmt.Println(tree.Nodes[node.Right].TmpTable)
-			getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
+			findQuery := "select count(*) from pg_class where relname = 'tablename';"
+			findQuery = strings.Replace(findQuery, "tablename", rightTableName, -1)
 
-			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
-			fmt.Println(tree.Nodes[node.Right].Locate, "right drop", res2)
+			fres := storage.ExecRemoteSelect(findQuery, address)
+			fmt.Println(fres)
+			fmt.Println(fres == "0")
+			// fmt.Println(fres == 0)
+			if fres == "0" {
+				getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
+			}
+
+			switch {
+			case node.Locate == "segment1":
+				tableList2 = append(tableList2, rightTableName)
+				break
+			case node.Locate == "segment2":
+				tableList2 = append(tableList3, rightTableName)
+				break
+			case node.Locate == "segment3":
+				tableList2 = append(tableList4, rightTableName)
+				break
+			}
+			// res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
+			// fmt.Println(tree.Nodes[node.Right].Locate, "right drop", res2)
 		}
 
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println(res)
-		fmt.Println(leftTableName, rightTableName)
+		// fmt.Println(leftTableName, rightTableName)
 
-		if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
-			res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
-			fmt.Println(node.Locate, "left drop", res3)
+		switch {
+		case node.Locate == "segment1":
+			tableList2 = append(tableList2, node.TmpTable)
+			break
+		case node.Locate == "segment2":
+			tableList2 = append(tableList3, node.TmpTable)
+			break
+		case node.Locate == "segment3":
+			tableList2 = append(tableList4, node.TmpTable)
+			break
 		}
-		if !(tree.Nodes[node.Right].NodeType == 1 && tree.Nodes[node.Right].Left == -1) {
-			res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
-			fmt.Println(node.Locate, "right drop", res4)
-		}
+
+		// if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
+		// 	res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
+		// 	fmt.Println(node.Locate, "left drop", res3)
+		// }
+		// if !(tree.Nodes[node.Right].NodeType == 1 && tree.Nodes[node.Right].Left == -1) {
+		// 	res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
+		// 	fmt.Println(node.Locate, "right drop", res4)
+		// }
 
 	}
 
@@ -364,7 +476,7 @@ func getTmpTable(node parser.PlanTreeNode, address string) {
 
 	insertQuery := "insert into " + tableName + " values "
 	query := "select * from " + tableName + " ;"
-	fmt.Println("before exec remote select")
+	fmt.Println("before exec remote select", query)
 	insertPlus := storage.ExecRemoteSelect(query, address)
 	fmt.Println("after")
 
@@ -434,16 +546,30 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		rightAddr := storage.GetServerAddress(tree.Nodes[node.Right].Locate)
 		// fmt.Println("join addr:", leftAddr, rightAddr)
 		if tree.Nodes[node.Left].Locate != ServerName {
+			findQuery := "select * from " + leftTableName
+			_, fres := client.Query(findQuery)
+			if fres != nil {
+				getTmpTable(tree.Nodes[node.Left], leftAddr)
 
-			getTmpTable(tree.Nodes[node.Left], leftAddr)
-			res1 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", leftAddr)
-			fmt.Println("left drop", res1)
+				tableList1 = append(tableList1, tree.Nodes[node.Left].TmpTable)
+			}
+
+			// res1 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", leftAddr)
+			// fmt.Println("left drop", res1)
 		}
 		if tree.Nodes[node.Right].Locate != ServerName {
 
-			getTmpTable(tree.Nodes[node.Right], rightAddr)
-			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
-			fmt.Println("right drop", res2)
+			findQuery := "select * from " + rightTableName
+			_, fres := client.Query(findQuery)
+			// fmt.Println("join in:", findQuery)
+			if fres != nil {
+				getTmpTable(tree.Nodes[node.Right], rightAddr)
+
+				tableList1 = append(tableList1, tree.Nodes[node.Right].TmpTable)
+			}
+
+			// res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
+			// fmt.Println("right drop", res2)
 
 		}
 
@@ -453,11 +579,11 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		res, err := stmt.Exec() //err
 		fmt.Println("join exec:", err)
 		println(res)
-
-		fmt.Println("main will drop", tree.Nodes[node.Left].TmpTable)
-		CleanTmpTable(tree.Nodes[node.Left])
-		fmt.Println("main will drop", tree.Nodes[node.Right].TmpTable)
-		CleanTmpTable(tree.Nodes[node.Right])
+		tableList1 = append(tableList1, node.TmpTable)
+		// fmt.Println("main will drop", tree.Nodes[node.Left].TmpTable)
+		// CleanTmpTable(tree.Nodes[node.Left])
+		// fmt.Println("main will drop", tree.Nodes[node.Right].TmpTable)
+		// CleanTmpTable(tree.Nodes[node.Right])
 	} else {
 
 		address := storage.GetServerAddress(node.Locate)
@@ -465,28 +591,77 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		rightAddr := storage.GetServerAddress(tree.Nodes[node.Right].Locate)
 		// fmt.Println("join addr:", address, leftAddr, rightAddr)
 		if tree.Nodes[node.Left].NodeType != 1 || tree.Nodes[node.Left].Locate != node.Locate {
-			getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
-			res1 := storage.ExecRemoteSql("drop table if exiss "+leftTableName+";", leftAddr)
-			fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
+			findQuery := "select count(*) from pg_class where relname = 'tablename';"
+			findQuery = strings.Replace(findQuery, "tablename", leftTableName, -1)
+
+			fres := storage.ExecRemoteSelect(findQuery, address)
+			fmt.Println(fres)
+			if fres == "0" {
+				getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
+				switch {
+				case node.Locate == "segment1":
+					tableList2 = append(tableList2, leftTableName)
+					break
+				case node.Locate == "segment2":
+					tableList2 = append(tableList3, leftTableName)
+					break
+				case node.Locate == "segment3":
+					tableList2 = append(tableList4, leftTableName)
+					break
+				}
+
+				// res1 := storage.ExecRemoteSql("drop table if exiss "+leftTableName+";", leftAddr)
+				// fmt.Println(tree.Nodes[node.Left].Locate, "left drop", res1)
+			}
+
 		}
 
 		if tree.Nodes[node.Right].NodeType != 1 || tree.Nodes[node.Right].Locate != node.Locate {
-			getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
-			res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", leftAddr)
-			fmt.Println(tree.Nodes[node.Right].Locate, "right drop", res2)
+			findQuery := "select count(*) from pg_class where relname = 'tablename';"
+			findQuery = strings.Replace(findQuery, "tablename", rightTableName, -1)
+
+			fres := storage.ExecRemoteSelect(findQuery, address)
+			fmt.Println(fres)
+			if fres == "0" {
+				getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
+				switch {
+				case node.Locate == "segment1":
+					tableList2 = append(tableList2, rightTableName)
+					break
+				case node.Locate == "segment2":
+					tableList2 = append(tableList3, rightTableName)
+					break
+				case node.Locate == "segment3":
+					tableList2 = append(tableList4, rightTableName)
+					break
+				}
+				// res1 := storage.ExecRemoteSql("drop table if exiss "+rightTableName+";", rightAddr)
+				// fmt.Println(tree.Nodes[node.Right].Locate, "right drop", res1)
+			}
 		}
 
 		res := storage.ExecRemoteSql(sqlStr, address)
 		fmt.Println(res)
+		switch {
+		case node.Locate == "segment1":
+			tableList2 = append(tableList2, node.TmpTable)
+			break
+		case node.Locate == "segment2":
+			tableList2 = append(tableList3, node.TmpTable)
+			break
+		case node.Locate == "segment3":
+			tableList2 = append(tableList4, node.TmpTable)
+			break
+		}
 
-		if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
-			res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
-			fmt.Println(node.Locate, "left drop", res3)
-		}
-		if !(tree.Nodes[node.Right].NodeType == 1 && tree.Nodes[node.Right].Left == -1) {
-			res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
-			fmt.Println(node.Locate, "right drop", res4)
-		}
+		// if !(tree.Nodes[node.Left].NodeType == 1 && tree.Nodes[node.Left].Left == -1) {
+		// 	res3 := storage.ExecRemoteSql("drop table if exists "+leftTableName+";", address)
+		// 	fmt.Println(node.Locate, "left drop", res3)
+		// }
+		// if !(tree.Nodes[node.Right].NodeType == 1 && tree.Nodes[node.Right].Left == -1) {
+		// 	res4 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", address)
+		// 	fmt.Println(node.Locate, "right drop", res4)
+		// }
 	}
 
 	// client.Close()
@@ -699,6 +874,29 @@ func printTree(node parser.PlanTreeNode, tree *parser.PlanTree, num int32) {
 	}
 
 }
+func CleanAllTable() {
+	for _, table := range tableList1 {
+		DropTable(table)
+	}
+
+	addr := storage.GetServerAddress("segment1")
+	for _, table := range tableList2 {
+		res1 := storage.ExecRemoteSql("drop table if exists "+table+";", addr)
+		fmt.Println(res1)
+	}
+
+	addr = storage.GetServerAddress("segment2")
+	for _, table := range tableList3 {
+		res1 := storage.ExecRemoteSql("drop table if exists "+table+";", addr)
+		fmt.Println(res1)
+	}
+
+	addr = storage.GetServerAddress("segment3")
+	for _, table := range tableList4 {
+		res1 := storage.ExecRemoteSql("drop table if exists "+table+";", addr)
+		fmt.Println(res1)
+	}
+}
 func Execute(tree *parser.PlanTree) (string, int) {
 	// printTree(tree.Nodes[tree.Root], tree, 0)
 	// tree.Print()
@@ -706,22 +904,27 @@ func Execute(tree *parser.PlanTree) (string, int) {
 	// address := storage.GetServerAddress("segment1")
 	// res := storage.ExecRemoteSql("drop table if exists "+"_transaction_0_tmptable_5"+" ;", address)
 	// fmt.Println("mainres:", res)
-	var resp Tuples
+	// var resp Tuples
 
-	executeNode(tree.Nodes[tree.Root], tree, resp)
-	result := printResult(tree)
-	resultLen := len(result)
-	var resultStr string
-	i := 0
-	for _, a := range result {
-		if i > 10 {
-			break
-		}
-		resultStr += a + "\n"
-		i += 1
-	}
-	// resultStr := "test"
-	// resultLen := 0
-	// tree.Print()
+	// executeNode(tree.Nodes[tree.Root], tree, resp)
+	// result := printResult(tree)
+	// resultLen := len(result)
+	// var resultStr string
+	// i := 0
+	// for _, a := range result {
+	// 	if i > 10 {
+	// 		break
+	// 	}
+	// 	resultStr += a + "\n"
+	// 	i += 1
+	// }
+	resultStr := "test"
+	resultLen := 0
+	tree.Print()
+	// CleanAllTable()
+	// fmt.Println(tableList1)
+	// fmt.Println(tableList2)
+	// fmt.Println(tableList3)
+	// fmt.Println(tableList4)
 	return resultStr, resultLen
 }
