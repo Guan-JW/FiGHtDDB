@@ -114,6 +114,7 @@ func CreateLeafNode(TmpTableName string) parser.PlanTreeNode {
 	node := parser.InitialPlanTreeNode()
 	node.NodeType = -2
 	node.TmpTable = TmpTableName
+	node.Status = 1
 	return node
 }
 
