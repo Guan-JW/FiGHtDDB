@@ -54,6 +54,27 @@ func CreateUnionNode(TmpTableName string) PlanTreeNode {
 	return node
 }
 
+// CreateInsertNode create insert node
+func CreateInsertNode(TableName string, cols string, values string, locate string) PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 6
+	node.TmpTable = TableName
+	node.ExecStmtCols = cols
+	node.Cols = values
+	node.Locate = locate
+	return node
+}
+
+func CreateDeleteNode(TableName string, where string, locate string) PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 7
+	node.TmpTable = TableName
+	node.Where = where
+	node.ExecStmtWhere = where
+	node.Locate = locate
+	return node
+}
+
 // ResetColsForWhere reset cols to get a unique colname
 func ResetColsForWhere(strin string) (strout string) {
 	strout = ""
@@ -202,6 +223,18 @@ func (logicalPlanTree *PlanTree) addFragNode(newNode PlanTreeNode) int64 {
 	logicalPlanTree.Nodes[pos] = newNode
 	logicalPlanTree.NodeNum++
 	return pos
+}
+
+func (pt *PlanTree) AddDeleteNode(newNode PlanTreeNode, leftChild int64) int64 {
+	id := pt.findEmptyNode()
+	newNode.Nodeid = id
+	newNode.Left = leftChild
+	pt.Nodes[id] = newNode
+	if leftChild >= 0 {
+		pt.Nodes[leftChild].Parent = id
+	}
+	pt.NodeNum++
+	return id
 }
 
 // AddVerticalFragJoinNode add fragment nodes and join nodes for vertical fragments
@@ -946,6 +979,322 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 	logicalPlanTree.AddFilternNode(CreateProjectionNode(logicalPlanTree.GetTmpTableName(), projectionString))
 }
 
+// handle insertion into only one table
+// TODO: support multiple tables
+func (logicalPlanTree *PlanTree) buildInsert(sel *sqlparser.Insert) {
+	tableName := sqlparser.String(sel.Table.Name)
+	Tmeta, err := storage.GetTableMeta(tableName)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	vals := sel.Rows.(sqlparser.Values)[0] // get the first table's values
+	// construct insert columns and values for each fragment
+	if len(Tmeta.FragSchema[0].Conditions) == 0 { // vertical
+		for _, schema := range Tmeta.FragSchema {
+			// step1: throw away conflict fragments and construct insert clauses
+			fragCols := schema.Cols
+			fragInsertCols := ""
+			fragInsertValues := ""
+			for _, fCol := range fragCols {
+				for i, v := range vals {
+					iCol := sqlparser.String(sel.Columns[i])
+					if fCol == iCol {
+						fragInsertCols += fCol + ","
+						fragInsertValues += sqlparser.String(v) + ","
+						break
+					}
+				}
+			}
+
+			// step2: add insert node
+			if fragInsertCols != "" {
+				fragInsertCols = strings.TrimSuffix(fragInsertCols, ",")
+				fragInsertValues = strings.TrimSuffix(fragInsertValues, ",")
+				// fmt.Println(fragInsertCols)
+				// fmt.Println(fragInsertValues)
+				id := logicalPlanTree.addFragNode(CreateInsertNode(tableName, fragInsertCols, fragInsertValues, schema.SiteName))
+				if logicalPlanTree.Root < 0 {
+					logicalPlanTree.Root = id // Root = 1
+				}
+			}
+		}
+	} else { // horizontal
+		for _, schema := range Tmeta.FragSchema {
+			// step1: throw away conflict fragments and construct insert clauses
+			conflict := false
+			for _, Cond := range schema.Conditions {
+				// fmt.Println("FragCond = ", Cond)
+				for i, v := range vals {
+					iCol := sqlparser.String(sel.Columns[i])
+					if Cond.Col == iCol {
+						var insertCond storage.Condition
+						insertCond.Col = iCol
+						insertCond.Comp = "="
+						insertCond.Value = sqlparser.String(v)
+						// fmt.Println("InsertCond = ", insertCond)
+						conflict = ValueConflict(&insertCond, &Cond)
+						break
+					}
+				}
+				if conflict {
+					break
+				}
+			}
+			// step2: add insert node
+			if !conflict {
+				fragInsertCols := ""
+				fragInsertValues := ""
+				for i, v := range vals {
+					fragInsertCols += sqlparser.String(sel.Columns[i]) + ","
+					fragInsertValues += sqlparser.String(v) + ","
+				}
+				fragInsertCols = strings.TrimSuffix(fragInsertCols, ",")
+				fragInsertValues = strings.TrimSuffix(fragInsertValues, ",")
+				id := logicalPlanTree.addFragNode(CreateInsertNode(tableName, fragInsertCols, fragInsertValues, schema.SiteName))
+				if logicalPlanTree.Root < 0 {
+					logicalPlanTree.Root = id // Root = 1
+				}
+			}
+		}
+	}
+}
+
+// get primary keys for vertical partitioned table
+// TODO: get primary key from meta
+func GetVerticalFragPrimKey(Tmeta *storage.TableMeta) map[string]void {
+	primKeys := make(map[string]void, 0)
+	colMap := make(map[string]int)
+	for _, schema := range Tmeta.FragSchema {
+		for _, col := range schema.Cols {
+			if val, ok := colMap[col]; ok {
+				colMap[col] = val + 1
+			} else {
+				colMap[col] = 1
+			}
+		}
+	}
+	// fmt.Println("colMap = ", colMap)
+	for k, v := range colMap {
+		if v == Tmeta.FragNum {
+			var member void
+			primKeys[k] = member
+		}
+	}
+	return primKeys
+}
+
+func (logicalPlanTree *PlanTree) buildDelete(sel *sqlparser.Delete) {
+
+	tableName := sqlparser.String(sel.TableExprs)
+	Tmeta, err := storage.GetTableMeta(strings.ToLower(tableName))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// deal with special case: no where clause, delete the whole table
+	if sel.Where == nil {
+		for _, schema := range Tmeta.FragSchema {
+			id := logicalPlanTree.AddDeleteNode(CreateDeleteNode(tableName, "", schema.SiteName), -1)
+			if logicalPlanTree.Root < 0 {
+				logicalPlanTree.Root = id
+			}
+		}
+		return
+	}
+
+	whereString := sqlparser.String(sel.Where.Expr)
+
+	fop := func(c rune) bool {
+		return !(c == '=' || c == '<' || c == '>')
+	}
+	deleteConds := strings.Split(whereString, "and")
+	deleteCols := make([]string, 0)
+	deleteVals := make([]string, 0)
+	deleteComps := make([]string, 0)
+	for _, cond := range deleteConds {
+		colVal := strings.FieldsFunc(cond, f)
+		op := strings.FieldsFunc(cond, fop)
+		deleteCols = append(deleteCols, colVal[0])
+		deleteVals = append(deleteVals, colVal[1])
+		deleteComps = append(deleteComps, op[0])
+	}
+	// fmt.Println(deleteCols, deleteComps, deleteVals)
+
+	if len(Tmeta.FragSchema[0].Conditions) == 0 { // vertical
+		// build delete trees
+		// step1: get primary key
+		primKeys := GetVerticalFragPrimKey(Tmeta)
+		// construct select columns
+		selectCols := ""
+		for k := range primKeys {
+			selectCols += k + ","
+		}
+		selectCols = strings.TrimSuffix(selectCols, ",")
+
+		selectIDList := make([]int64, 0)
+		SiteNameList := make([]string, 0)
+		SiteNameMap := make(map[string]void)
+		for _, schema := range Tmeta.FragSchema {
+			// step2: construct select clauses for each fragment
+			// don't throw away vertical fragments
+			fragWhere := ""
+			for _, fCol := range schema.Cols {
+				for i, dCol := range deleteCols {
+					if fCol == dCol {
+						fragWhere += fCol + " " + deleteComps[i] + " " + deleteVals[i] + " and "
+					}
+				}
+			}
+
+			// step3: create table node, select node
+			if fragWhere != "" {
+				fragWhere = strings.TrimSuffix(fragWhere, " and ")
+				fragWhere = "where " + fragWhere
+				// add table node
+				TableID := logicalPlanTree.addFragNode(createTableNode(tableName, schema.SiteName))
+				// add selection node
+				selectID := logicalPlanTree.findEmptyNode()
+				selectNode := CreateSelectionNode(logicalPlanTree.GetTmpTableName(), fragWhere)
+				selectNode.Nodeid = selectID
+				selectNode.Locate = schema.SiteName
+				selectNode.Left = TableID
+				selectNode.Cols = selectCols
+				selectNode.ExecStmtCols = selectCols
+				selectNode.ExecStmtWhere = fragWhere
+				logicalPlanTree.Nodes[TableID].Parent = selectID
+				logicalPlanTree.Nodes[selectID] = selectNode
+				logicalPlanTree.NodeNum++
+
+				selectIDList = append(selectIDList, selectID)
+				SiteNameList = append(SiteNameList, schema.SiteName)
+				var member void
+				SiteNameMap[schema.SiteName] = member
+			}
+		}
+		// step4: add union node, delete node
+		deleteNodeCount := 0
+		if len(selectIDList) > 0 {
+			// add union node
+			selectLength := len(selectIDList)
+			UnionIDList := make([]int64, 0)
+			for i := 0; i < selectLength; i++ {
+				UnionSiteName := SiteNameList[i]
+				leftID := selectIDList[i]
+				for j := 0; j < selectLength; j++ {
+					if i == j {
+						continue
+					}
+					rightID := selectIDList[j]
+					unionNode := CreateUnionNode(logicalPlanTree.GetTmpTableName())
+					unionNode.Locate = UnionSiteName
+					logicalPlanTree.NodeNum++
+					leftID = logicalPlanTree.AddParentNode(unionNode, leftID, rightID)
+				}
+				UnionIDList = append(UnionIDList, leftID)
+
+				// add delete node
+				// construct where clause
+				unionTableName := logicalPlanTree.Nodes[leftID].TmpTable
+				deleteWhere := ""
+				if len(primKeys) == 1 {
+					for k := range primKeys {
+						deleteWhere += tableName + "." + k + " in " + unionTableName
+					}
+				} else {
+					for k := range primKeys {
+						deleteWhere += tableName + "." + k + " in select " + k + " from " + unionTableName + " and "
+					}
+				}
+				if deleteWhere != "" {
+					deleteWhere = strings.TrimSuffix(deleteWhere, " and ")
+					deleteWhere = "where " + deleteWhere
+					deleteID := logicalPlanTree.AddDeleteNode(CreateDeleteNode(tableName, deleteWhere, UnionSiteName), leftID)
+					if deleteNodeCount == 0 {
+						logicalPlanTree.Root = deleteID
+						deleteNodeCount++
+					}
+				}
+			}
+			// fmt.Println("UnionIDList = ", UnionIDList)
+
+			// add delete node for remain fragments
+			if selectLength < len(Tmeta.FragSchema) {
+				siteRefCount := make([]int, selectLength)
+				for _, schema := range Tmeta.FragSchema {
+					site := schema.SiteName
+					if _, ok := SiteNameMap[site]; ok {
+						continue
+					}
+					// determine which union site
+					maxRef := 1
+					unionID := int64(-1)
+					for i, cnt := range siteRefCount {
+						if cnt < maxRef {
+							unionID = UnionIDList[i]
+							siteRefCount[i]++
+						}
+					}
+					if unionID < 0 {
+						maxRef++
+						unionID = UnionIDList[0]
+					}
+
+					// create delete node
+					unionTmpTable := logicalPlanTree.Nodes[unionID].TmpTable
+					deleteWhere := ""
+					if len(primKeys) == 1 {
+						for k := range primKeys {
+							deleteWhere += tableName + "." + k + " in " + unionTmpTable
+						}
+					} else {
+						for k := range primKeys {
+							deleteWhere += tableName + "." + k + " in select " + k + " from " + unionTmpTable + " and "
+						}
+					}
+					if deleteWhere != "" {
+						deleteWhere = strings.TrimSuffix(deleteWhere, " and ")
+						deleteWhere = "where " + deleteWhere
+						logicalPlanTree.AddDeleteNode(CreateDeleteNode(tableName, deleteWhere, site), unionID)
+						// fmt.Println("deleteID = ", deleteID)
+						// fmt.Println("nodeNum = ", logicalPlanTree.NodeNum)
+					}
+				}
+			}
+		}
+
+	} else { // horizontal
+		for _, schema := range Tmeta.FragSchema {
+			// step1: throw away conflict fragments and construct delete clauses
+			conflict := false
+			for _, Cond := range schema.Conditions {
+				for i, dCol := range deleteCols {
+					if Cond.Col == dCol {
+						var deleteCond storage.Condition
+						deleteCond.Col = dCol
+						deleteCond.Comp = deleteComps[i]
+						deleteCond.Value = deleteVals[i]
+						conflict = ValueConflict(&deleteCond, &Cond)
+						break
+					}
+				}
+				if conflict {
+					break
+				}
+			}
+			// step2: add delete node
+			if !conflict {
+				id := logicalPlanTree.AddDeleteNode(CreateDeleteNode(tableName, "where "+whereString, schema.SiteName), -1)
+				if logicalPlanTree.Root < 0 {
+					logicalPlanTree.Root = id
+				}
+			}
+		}
+	}
+}
+
+// TODO: support multiple queries at a time, return multiple PlanTrees
 func Parse(sql string, txnID int64) *PlanTree {
 	stmt, err := sqlparser.Parse(sql)
 	if err != nil {
@@ -960,86 +1309,13 @@ func Parse(sql string, txnID int64) *PlanTree {
 	switch stmt.(type) {
 	case *sqlparser.Select:
 		planTree.buildSelect(stmt.(*sqlparser.Select))
-
-	// case *sqlparser.Update:
-	// 	// return handleUpdate(stmt.(*sqlparser.Update))
 	case *sqlparser.Insert:
-		fmt.Println(stmt.(*sqlparser.Insert))
-		// 	// return handleInsert(stmt.(*sqlparser.Insert))
-		// 	buildInsert(stmt.(*sqlparser.Insert))
-		// case *sqlparser.Delete:
-		// 	// return handleDelete(stmt.(*sqlparser.Delete))
+		planTree.buildInsert(stmt.(*sqlparser.Insert))
+	case *sqlparser.Delete:
+		planTree.buildDelete(stmt.(*sqlparser.Delete))
+		// case *sqlparser.Update:
+		// return handleUpdate(stmt.(*sqlparser.Update))
 	}
-
-	// ips, ports, siteNames, err := storage.FetchSites("Publisher")
-	// if err != nil {
-	// 	return nil
-	// }
-
-	// // union node
-	// node1 := new(UnionOperator)
-	// node1.ip = "10.77.50.211"
-	// node1.siteName = "main"
-
-	// // union node
-	// node2 := new(UnionOperator)
-	// node2.ip = "10.77.50.211"
-	// node2.siteName = "main"
-	// node1.left = node2
-	// planTree.nodeNum = 1
-
-	// // union node
-	// node3 := new(UnionOperator)
-	// node3.ip = "10.77.50.211"
-	// node2.siteName = "main"
-	// node1.right = node3
-
-	// // scan node
-	// node4 := new(ScanOperator)
-	// node4.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
-	// node4.ip = ips[0]
-	// node4.port = ports[0]
-	// node4.tableName = "Publisher"
-	// node4.siteName = siteNames[0]
-	// node4.left = nil
-	// node4.right = nil
-
-	// // scan node
-	// node5 := new(ScanOperator)
-	// node5.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
-	// node5.ip = ips[1]
-	// node5.port = ports[1]
-	// node5.tableName = "Publisher"
-	// node5.siteName = siteNames[1]
-	// node5.left = nil
-	// node5.right = nil
-
-	// // scan node
-	// node6 := new(ScanOperator)
-	// node6.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
-	// node6.ip = ips[2]
-	// node6.port = ports[2]
-	// node6.tableName = "Publisher"
-	// node6.siteName = siteNames[2]
-	// node6.left = nil
-	// node6.right = nil
-
-	// // scan node
-	// node7 := new(ScanOperator)
-	// node7.db = storage.NewDb("postgres", "postgres", "postgres", 5555, "disable")
-	// node7.ip = ips[3]
-	// node7.port = ports[3]
-	// node7.tableName = "Publisher"
-	// node7.siteName = siteNames[3]
-	// node7.left = nil
-	// node7.right = nil
-
-	// node2.left = node4
-	// node2.right = node5
-	// node3.left = node6
-	// node3.right = node7
-
-	// planTree.root = node1
 
 	return planTree
 }

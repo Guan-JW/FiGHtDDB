@@ -334,21 +334,23 @@ func merge_filters(pt *parser.PlanTree, beginNode int64, parentID int64) {
 
 func FilterMerge(pt *parser.PlanTree) *parser.PlanTree {
 	// fmt.Println("!!!! Column Pruning !!!!")
-	merge_filters(pt, pt.Root, int64(-1))
+	if pt.Root >= 0 && pt.Nodes[pt.Root].NodeType < 6 {
+		merge_filters(pt, pt.Root, int64(-1))
 
-	// fmt.Println("Root.Cols: ", pt.Nodes[pt.Root].Cols)
-	// fmt.Println("Root.Left.Cols: ", pt.Nodes[pt.Nodes[pt.Root].Left].Cols)
+		// fmt.Println("Root.Cols: ", pt.Nodes[pt.Root].Cols)
+		// fmt.Println("Root.Left.Cols: ", pt.Nodes[pt.Nodes[pt.Root].Left].Cols)
 
-	// remove useless projection node on the top
-	RootID := pt.Root
-	ChildID := pt.Nodes[RootID].Left
-	RootCols := pt.Nodes[RootID].Cols
-	ChildCols := pt.Nodes[ChildID].Cols
-	if (RootCols == "*" && ChildCols == "") || (RootCols == ChildCols) {
-		// remove root
-		pt.Root = ChildID
-		pt.Nodes[ChildID].Parent = -1
-		pt.Nodes[RootID] = parser.InitialPlanTreeNode()
+		// remove useless projection node on the top
+		RootID := pt.Root
+		ChildID := pt.Nodes[RootID].Left
+		RootCols := pt.Nodes[RootID].Cols
+		ChildCols := pt.Nodes[ChildID].Cols
+		if (RootCols == "*" && ChildCols == "") || (RootCols == ChildCols) {
+			// remove root
+			pt.Root = ChildID
+			pt.Nodes[ChildID].Parent = -1
+			pt.Nodes[RootID] = parser.InitialPlanTreeNode()
+		}
 	}
 	// pt.Print()
 	return pt

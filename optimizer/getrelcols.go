@@ -10,7 +10,9 @@ import (
 
 func GetRelCols(pt *parser.PlanTree) *parser.PlanTree {
 	// var newtree parser.PlanTree
-	getRelCols(pt, pt.Root)
+	if pt.Root >= 0 && pt.Nodes[pt.Root].NodeType < 6 {
+		getRelCols(pt, pt.Root)
+	}
 	// newtree = oldtree
 	// newtree.Print()
 	return pt
