@@ -193,13 +193,5 @@ func SelectionPushDown(pt *parser.PlanTree) *parser.PlanTree {
 		}
 	}
 
-	for i, node := range pt.Nodes {
-		if node.NodeType == 1 && !node.TransferFlag {
-			pt.Nodes[i].Status = 1
-		} else {
-			pt.Nodes[i].Status = 0
-		}
-	}
-
 	return pt
 }

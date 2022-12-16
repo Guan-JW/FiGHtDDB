@@ -114,7 +114,7 @@ func CreateLeafNode(TmpTableName string) parser.PlanTreeNode {
 	node := parser.InitialPlanTreeNode()
 	node.NodeType = -2
 	node.TmpTable = TmpTableName
-	node.Status = 1
+	// node.Status = 1
 	return node
 }
 
@@ -245,11 +245,13 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 			pt.Nodes[node.Left].TmpTable = NewTableName
 			addLeafNode(pt, node.Left, CreateLeafNode(leftTmpTable))
 			leftTmpTable = NewTableName
+			// node.Status = 0
 		} else if pt.Nodes[node.Right].Left == -1 && pt.Nodes[node.Right].TransferFlag {
 			NewTableName := pt.GetTmpTableName()
 			pt.Nodes[node.Right].TmpTable = NewTableName
 			addLeafNode(pt, node.Right, CreateLeafNode(rightTmpTable))
 			rightTmpTable = NewTableName
+			// node.Status = 0
 		}
 		// os.Exit(0)
 
