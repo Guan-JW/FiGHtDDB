@@ -265,6 +265,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 		node.ExecStmtWhere = node.Where
 		// fmt.Println("node.ExecStmtWhere (left before) = ", node.ExecStmtWhere)
 		// inefficient for big tables
+		colsMap := make(map[string]int)
 		for _, col := range usedCols {
 			// fmt.Println("col=", col)
 			// col = strings.ReplaceAll(col, " ", "")
@@ -288,9 +289,25 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 
 					// replace table name with leftTmpTable -- fromClause
 					if len(tableCol) == 2 {
-						node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[1], -1)
+						if val, ok := colsMap[tableCol[1]]; ok {
+							newVal := val + 1
+							colsMap[tableCol[1]] = newVal
+							newName := tableCol[1] + strconv.Itoa(newVal)
+							node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[1]+" as "+newName, -1)
+						} else {
+							colsMap[tableCol[1]] = 0
+							node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[1], -1)
+						}
 					} else {
-						node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[0], -1)
+						if val, ok := colsMap[tableCol[0]]; ok {
+							newVal := val + 1
+							colsMap[tableCol[0]] = newVal
+							newName := tableCol[0] + strconv.Itoa(newVal)
+							node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[0]+" as "+newName, -1)
+						} else {
+							colsMap[tableCol[0]] = 0
+							node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[0], -1)
+						}
 					}
 					// fmt.Println("node.ExecStmtWhere (after) = ", node.ExecStmtWhere)
 
@@ -324,9 +341,25 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 
 					// replace table name with leftTmpTable -- fromClause
 					if len(tableCol) == 2 {
-						node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[1])
+						if val, ok := colsMap[tableCol[1]]; ok {
+							newVal := val + 1
+							colsMap[tableCol[1]] = newVal
+							newName := tableCol[1] + strconv.Itoa(newVal)
+							node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[1]+" as "+newName)
+						} else {
+							colsMap[tableCol[1]] = 0
+							node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[1])
+						}
 					} else {
-						node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[0])
+						if val, ok := colsMap[tableCol[0]]; ok {
+							newVal := val + 1
+							colsMap[tableCol[0]] = newVal
+							newName := tableCol[0] + strconv.Itoa(newVal)
+							node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[0]+" as "+newName)
+						} else {
+							colsMap[tableCol[0]] = 0
+							node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[0])
+						}
 					}
 					break
 				}

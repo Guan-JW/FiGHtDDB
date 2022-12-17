@@ -1315,6 +1315,8 @@ func Parse(sql string, txnID int64) *PlanTree {
 		planTree.buildDelete(stmt.(*sqlparser.Delete))
 		// case *sqlparser.Update:
 		// return handleUpdate(stmt.(*sqlparser.Update))
+		// case *sqlparser.DDL:
+		// 	fmt.Println(stmt)
 	}
 
 	return planTree
