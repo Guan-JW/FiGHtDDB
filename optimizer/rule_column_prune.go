@@ -1,6 +1,7 @@
 package optimizer
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -269,6 +270,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 		for _, col := range usedCols {
 			// fmt.Println("col=", col)
 			// col = strings.ReplaceAll(col, " ", "")
+			leftEqualCol := ""
 			for _, lcol := range leftRelCols {
 				// fmt.Println("lcol=", lcol)
 
@@ -310,13 +312,17 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 						}
 					}
 					// fmt.Println("node.ExecStmtWhere (after) = ", node.ExecStmtWhere)
-
+					leftEqualCol = lcol
 					break
 				}
 			}
+
 			for _, rcol := range rightRelCols {
 				// fmt.Println("rcol=", rcol)
 				tableCol := strings.Split(rcol, ".")
+				if leftEqualCol == rcol { // means vertical fragments' primary key, skip it
+					continue
+				}
 				if col == rcol || col == tableCol[1] { // col contains tableName or not
 					// fmt.Println("right equal!")
 					subsetRight += rcol + ","
@@ -365,6 +371,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 				}
 			}
 		}
+		fmt.Println("colsMap = ", colsMap)
 		subsetLeft = strings.TrimSuffix(subsetLeft, ",")
 		subsetRight = strings.TrimSuffix(subsetRight, ",")
 
