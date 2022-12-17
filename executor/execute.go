@@ -114,7 +114,7 @@ func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			var resp1 Tuples
 			// fmt.Println("left:", leftNode.TmpTable)
 			executeNode(leftNode, tree, resp1)
-			leftNode.Status = 1
+			// leftNode.Status = 1
 		}
 
 	}
@@ -125,12 +125,13 @@ func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			var resp2 Tuples
 			// fmt.Println("right:", rightNode.TmpTable)
 			executeNode(rightNode, tree, resp2)
-			rightNode.Status = 1
+			// rightNode.Status = 1
 		}
 
 	}
 
 	executeOperator(node, tree, resp)
+	node.Status = 1
 
 }
 func DropTable(tableName string) {
@@ -237,10 +238,10 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			tableList2 = append(tableList2, node.TmpTable)
 			break
 		case node.Locate == "segment2":
-			tableList2 = append(tableList3, node.TmpTable)
+			tableList3 = append(tableList3, node.TmpTable)
 			break
 		case node.Locate == "segment3":
-			tableList2 = append(tableList4, node.TmpTable)
+			tableList4 = append(tableList4, node.TmpTable)
 			break
 		}
 
@@ -303,10 +304,10 @@ func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			tableList2 = append(tableList2, node.TmpTable)
 			break
 		case node.Locate == "segment2":
-			tableList2 = append(tableList3, node.TmpTable)
+			tableList3 = append(tableList3, node.TmpTable)
 			break
 		case node.Locate == "segment3":
-			tableList2 = append(tableList4, node.TmpTable)
+			tableList4 = append(tableList4, node.TmpTable)
 			break
 		}
 		// res3 := storage.ExecRemoteSql("drop table if exist "+tableName+";", address)
@@ -377,9 +378,9 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 			findQuery = strings.Replace(findQuery, "tablename", leftTableName, -1)
 
 			fres := storage.ExecRemoteSelect(findQuery, address)
-			fmt.Println(fres == "0")
+			fmt.Println(fres == "(0)")
 			// fmt.Println(fres == 0)
-			if fres == "0" {
+			if fres == "(0)" {
 				getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
 			}
 
@@ -388,10 +389,10 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 				tableList2 = append(tableList2, leftTableName)
 				break
 			case node.Locate == "segment2":
-				tableList2 = append(tableList3, leftTableName)
+				tableList3 = append(tableList3, leftTableName)
 				break
 			case node.Locate == "segment3":
-				tableList2 = append(tableList4, leftTableName)
+				tableList4 = append(tableList4, leftTableName)
 				break
 			}
 			// res1 := storage.ExecRemoteSql("drop table if exiss "+leftTableName+";", leftAddr)
@@ -400,14 +401,14 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 
 		fmt.Println("right locage:", tree.Nodes[node.Right].Locate != node.Locate)
 		if tree.Nodes[node.Right].NodeType != 1 || tree.Nodes[node.Right].Locate != node.Locate {
-			findQuery := "select count(*) from pg_class where relname = 'tablename';"
-			findQuery = strings.Replace(findQuery, "tablename", rightTableName, -1)
+			findQuery2 := "select count(*) from pg_class where relname = 'tablename';"
+			findQuery2 = strings.Replace(findQuery2, "tablename", rightTableName, -1)
 
-			fres := storage.ExecRemoteSelect(findQuery, address)
-			fmt.Println(fres)
-			fmt.Println(fres == "0")
+			fres2 := storage.ExecRemoteSelect(findQuery2, address)
+			fmt.Println(fres2)
+			fmt.Println(fres2 == "(0)")
 			// fmt.Println(fres == 0)
-			if fres == "0" {
+			if fres2 == "(0)" {
 				getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
 			}
 
@@ -416,10 +417,10 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 				tableList2 = append(tableList2, rightTableName)
 				break
 			case node.Locate == "segment2":
-				tableList2 = append(tableList3, rightTableName)
+				tableList3 = append(tableList3, rightTableName)
 				break
 			case node.Locate == "segment3":
-				tableList2 = append(tableList4, rightTableName)
+				tableList4 = append(tableList4, rightTableName)
 				break
 			}
 			// res2 := storage.ExecRemoteSql("drop table if exists "+rightTableName+";", rightAddr)
@@ -435,10 +436,10 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 			tableList2 = append(tableList2, node.TmpTable)
 			break
 		case node.Locate == "segment2":
-			tableList2 = append(tableList3, node.TmpTable)
+			tableList3 = append(tableList3, node.TmpTable)
 			break
 		case node.Locate == "segment3":
-			tableList2 = append(tableList4, node.TmpTable)
+			tableList4 = append(tableList4, node.TmpTable)
 			break
 		}
 
@@ -539,9 +540,10 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 
 	}
 
-	fmt.Println("join sql", sqlStr)
+	fmt.Println("join sql", sqlStr, node.Locate, ServerName)
 	ServerName := storage.ServerName()
 	if node.Locate == ServerName {
+		fmt.Println("join main")
 		leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
 		rightAddr := storage.GetServerAddress(tree.Nodes[node.Right].Locate)
 		// fmt.Println("join addr:", leftAddr, rightAddr)
@@ -585,6 +587,7 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		// fmt.Println("main will drop", tree.Nodes[node.Right].TmpTable)
 		// CleanTmpTable(tree.Nodes[node.Right])
 	} else {
+		fmt.Println("join not main")
 
 		address := storage.GetServerAddress(node.Locate)
 		leftAddr := storage.GetServerAddress(tree.Nodes[node.Left].Locate)
@@ -595,18 +598,19 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			findQuery = strings.Replace(findQuery, "tablename", leftTableName, -1)
 
 			fres := storage.ExecRemoteSelect(findQuery, address)
-			fmt.Println(fres)
-			if fres == "0" {
+			fmt.Println("left", fres, fres == "(0)")
+			if fres == "(0)" {
+				fmt.Println("fres==0 left:", leftTableName)
 				getRemoteTmpTable(tree.Nodes[node.Left], leftAddr, address)
 				switch {
 				case node.Locate == "segment1":
 					tableList2 = append(tableList2, leftTableName)
 					break
 				case node.Locate == "segment2":
-					tableList2 = append(tableList3, leftTableName)
+					tableList3 = append(tableList3, leftTableName)
 					break
 				case node.Locate == "segment3":
-					tableList2 = append(tableList4, leftTableName)
+					tableList4 = append(tableList4, leftTableName)
 					break
 				}
 
@@ -617,22 +621,23 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		}
 
 		if tree.Nodes[node.Right].NodeType != 1 || tree.Nodes[node.Right].Locate != node.Locate {
-			findQuery := "select count(*) from pg_class where relname = 'tablename';"
-			findQuery = strings.Replace(findQuery, "tablename", rightTableName, -1)
+			findQuery2 := "select count(*) from pg_class where relname = 'tablename';"
+			findQuery2 = strings.Replace(findQuery2, "tablename", rightTableName, -1)
 
-			fres := storage.ExecRemoteSelect(findQuery, address)
-			fmt.Println(fres)
-			if fres == "0" {
+			fres2 := storage.ExecRemoteSelect(findQuery2, address)
+			fmt.Println(fres2)
+			if fres2 == "(0)" {
+				fmt.Println("fres==0 right:", rightTableName)
 				getRemoteTmpTable(tree.Nodes[node.Right], rightAddr, address)
 				switch {
 				case node.Locate == "segment1":
 					tableList2 = append(tableList2, rightTableName)
 					break
 				case node.Locate == "segment2":
-					tableList2 = append(tableList3, rightTableName)
+					tableList3 = append(tableList3, rightTableName)
 					break
 				case node.Locate == "segment3":
-					tableList2 = append(tableList4, rightTableName)
+					tableList4 = append(tableList4, rightTableName)
 					break
 				}
 				// res1 := storage.ExecRemoteSql("drop table if exiss "+rightTableName+";", rightAddr)
@@ -647,10 +652,10 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 			tableList2 = append(tableList2, node.TmpTable)
 			break
 		case node.Locate == "segment2":
-			tableList2 = append(tableList3, node.TmpTable)
+			tableList3 = append(tableList3, node.TmpTable)
 			break
 		case node.Locate == "segment3":
-			tableList2 = append(tableList4, node.TmpTable)
+			tableList4 = append(tableList4, node.TmpTable)
 			break
 		}
 
@@ -904,24 +909,24 @@ func Execute(tree *parser.PlanTree) (string, int) {
 	// address := storage.GetServerAddress("segment1")
 	// res := storage.ExecRemoteSql("drop table if exists "+"_transaction_0_tmptable_5"+" ;", address)
 	// fmt.Println("mainres:", res)
-	// var resp Tuples
+	var resp Tuples
 
-	// executeNode(tree.Nodes[tree.Root], tree, resp)
-	// result := printResult(tree)
-	// resultLen := len(result)
-	// var resultStr string
-	// i := 0
-	// for _, a := range result {
-	// 	if i > 10 {
-	// 		break
-	// 	}
-	// 	resultStr += a + "\n"
-	// 	i += 1
-	// }
-	resultStr := "test"
-	resultLen := 0
-	tree.Print()
-	// CleanAllTable()
+	executeNode(tree.Nodes[tree.Root], tree, resp)
+	result := printResult(tree)
+	resultLen := len(result)
+	var resultStr string
+	i := 0
+	for _, a := range result {
+		if i > 10 {
+			break
+		}
+		resultStr += a + "\n"
+		i += 1
+	}
+	// resultStr := "test"
+	// resultLen := 0
+	// tree.Print()
+	CleanAllTable()
 	// fmt.Println(tableList1)
 	// fmt.Println(tableList2)
 	// fmt.Println(tableList3)
