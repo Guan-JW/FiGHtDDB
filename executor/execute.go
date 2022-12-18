@@ -536,7 +536,7 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) {
 		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " natural join " + rightTableName + ";"
 
 	} else {
-		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " , " + rightTableName + " " + node.ExecStmtWhere + ";"
+		sqlStr = "create table " + node.TmpTable + " as select " + Cols + " from " + leftTableName + " inner join " + rightTableName + " " + " on " + strings.TrimPrefix(node.ExecStmtWhere, "where") + ";"
 
 	}
 
@@ -902,34 +902,98 @@ func CleanAllTable() {
 		fmt.Println(res1)
 	}
 }
+func ExecuteInsert(tree *parser.PlanTree) {
+	nodeNum := int(tree.NodeNum)
+	for i := 1; i <= nodeNum; i++ {
+		node := tree.Nodes[i]
+
+		insertSql := "insert into " + node.TmpTable + " (" + node.ExecStmtCols + ") values (" + node.Cols + ")"
+		if node.Locate != "main" {
+			address := storage.GetServerAddress(node.Locate)
+			res2 := storage.ExecRemoteSql(insertSql, address)
+			fmt.Println("remote insert", res2)
+		} else {
+			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+			client, err := sql.Open("postgres", connStr)
+			fmt.Println("insert err", err)
+			stmt2, err := client.Prepare(insertSql)
+			fmt.Println("insert prepare", err)
+			res2, err := stmt2.Exec()
+			fmt.Println("insert", res2, err)
+		}
+	}
+}
+func ExecuteDelete(tree *parser.PlanTree) {
+	nodeNum := int(tree.NodeNum)
+	for i := 1; i <= nodeNum; i++ {
+		node := tree.Nodes[i]
+		fmt.Println(node.TmpTable, node.ExecStmtWhere)
+		if node.Left != -1 {
+			var resp Tuples
+			executeNode(tree.Nodes[node.Left], tree, resp)
+		}
+
+		delSql := "delete from " + node.TmpTable + " " + node.ExecStmtWhere
+
+		// if node.ExecStmtWhere != "" {
+		// 	delSql += "  " + node.ExecStmtWhere
+		// }
+		fmt.Println(delSql)
+		if node.Locate == "main" {
+			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+			client, err := sql.Open("postgres", connStr)
+			fmt.Println("delete err", err)
+			stmt2, err := client.Prepare(delSql)
+			fmt.Println("delete prepare", err)
+			res2, err := stmt2.Exec()
+			fmt.Println("delete", res2, err)
+		} else {
+			address := storage.GetServerAddress(node.Locate)
+			fmt.Println(address)
+			res2 := storage.ExecRemoteSql(delSql, address)
+			fmt.Println("remote insert", res2)
+		}
+
+	}
+}
 func Execute(tree *parser.PlanTree) (string, int) {
 	// printTree(tree.Nodes[tree.Root], tree, 0)
 	// tree.Print()
 
-	// address := storage.GetServerAddress("segment1")
-	// res := storage.ExecRemoteSql("drop table if exists "+"_transaction_0_tmptable_5"+" ;", address)
-	// fmt.Println("mainres:", res)
-	var resp Tuples
-
-	executeNode(tree.Nodes[tree.Root], tree, resp)
-	result := printResult(tree)
-	resultLen := len(result)
-	var resultStr string
-	i := 0
-	for _, a := range result {
-		if i > 10 {
-			break
+	resultStr := ""
+	resultLen := 0
+	if tree.Nodes[tree.Root].NodeType == 6 {
+		ExecuteInsert(tree)
+		resultStr = "insert success"
+		resultLen = 0
+	} else if tree.Nodes[tree.Root].NodeType == 7 {
+		tree.Print()
+		fmt.Println("delete execute")
+		ExecuteDelete(tree)
+		resultStr = "delete success"
+		resultLen = 0
+	} else {
+		var resp Tuples
+		executeNode(tree.Nodes[tree.Root], tree, resp)
+		result := printResult(tree)
+		resultLen = len(result)
+		var resultStr string
+		i := 0
+		for _, a := range result {
+			if i > 10 {
+				break
+			}
+			resultStr += a + "\n"
+			i += 1
 		}
-		resultStr += a + "\n"
-		i += 1
+		CleanAllTable()
+
+		fmt.Println(tableList1)
+		fmt.Println(tableList2)
+		fmt.Println(tableList3)
+		fmt.Println(tableList4)
 	}
-	// resultStr := "test"
-	// resultLen := 0
 	// tree.Print()
-	CleanAllTable()
-	// fmt.Println(tableList1)
-	// fmt.Println(tableList2)
-	// fmt.Println(tableList3)
-	// fmt.Println(tableList4)
+
 	return resultStr, resultLen
 }
