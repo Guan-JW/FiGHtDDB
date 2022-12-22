@@ -1329,14 +1329,9 @@ func (logicalPlanTree *PlanTree) buildDelete(sel *sqlparser.Delete) {
 	}
 }
 
-func GetSiteNames() []string {
-	sites := []string{"main", "segment1", "segment2", "segment3"}
-	return sites
-}
-
 func (logicalPlanTree *PlanTree) buildDatabase(sel *sqlparser.DBDDL) {
 	DBName := sel.DBName
-	sites := GetSiteNames()
+	sites := storage.GetAllServerNames()
 	for i, site := range sites {
 		id := logicalPlanTree.AddSingleNode(CreateDBNode(DBName, site))
 		if i == 0 {
@@ -1347,7 +1342,7 @@ func (logicalPlanTree *PlanTree) buildDatabase(sel *sqlparser.DBDDL) {
 
 func (logicalPlanTree *PlanTree) buildUse(sel *sqlparser.Use) {
 	DBName := sqlparser.String(sel.DBName)
-	sites := GetSiteNames()
+	sites := storage.GetAllServerNames()
 	for i, site := range sites {
 		id := logicalPlanTree.AddSingleNode(CreateUseNode(DBName, site))
 		if i == 0 {
@@ -1356,62 +1351,6 @@ func (logicalPlanTree *PlanTree) buildUse(sel *sqlparser.Use) {
 	}
 }
 
-//	type DDL struct {
-//		Action        string
-//		Table         TableName
-//		NewName       TableName
-//		IfExists      bool
-//		TableSpec     *TableSpec
-//		PartitionSpec *PartitionSpec
-//		VindexSpec    *VindexSpec
-//		VindexCols    []ColIdent
-//	}
-// type PartitionSpec struct {
-// 	Action      string
-// 	Name        ColIdent
-// 	Definitions []*PartitionDefinition
-// }
-// type PartitionDefinition struct {
-// 	Name     ColIdent
-// 	Limit    Expr
-// 	Maxvalue bool
-// }
-// type TableSpec struct {
-// 	Columns []*ColumnDefinition
-// 	Indexes []*IndexDefinition
-// 	Options string
-// }
-// type ColumnDefinition struct {
-// 	Name ColIdent
-// 	Type ColumnType
-// }
-// type ColumnType struct {
-// 	// The base type string
-// 	Type string
-
-// 	// Generic field options.
-// 	NotNull       BoolVal
-// 	Autoincrement BoolVal
-// 	Default       *SQLVal
-// 	OnUpdate      *SQLVal
-// 	Comment       *SQLVal
-
-// 	// Numeric field options
-// 	Length   *SQLVal
-// 	Unsigned BoolVal
-// 	Zerofill BoolVal
-// 	Scale    *SQLVal
-
-// 	// Text field options
-// 	Charset string
-// 	Collate string
-
-// 	// Enum values
-// 	EnumValues []string
-
-//		// Key specification
-//		KeyOpt ColumnKeyOption
-//	}
 func ConstructCreateTableStmt(tableName string, Columns []*sqlparser.ColumnDefinition) (string, []string) {
 	result := "create table " + tableName + " ("
 	var cols []string
@@ -1546,7 +1485,7 @@ func (logicalPlanTree *PlanTree) buildTable(sel *sqlparser.DDL, sql string) {
 		// create the same table on all sites
 		// fmt.Println("Creating on all sites")
 		createString, cols := ConstructCreateTableStmt(tableName, TableSpec.Columns)
-		sites := GetSiteNames()
+		sites := storage.GetAllServerNames()
 
 		var Tmeta storage.TableMeta
 		Tmeta.TableName = tableName
@@ -1568,19 +1507,6 @@ func (logicalPlanTree *PlanTree) buildTable(sel *sqlparser.DDL, sql string) {
 		// fmt.Println(logicalPlanTree.TableMeta)
 	}
 
-	// fmt.Println(tableName)
-	// fmt.Println(TableSpec)
-	// // for _, col := range TableSpec.Columns {
-	// // 	fmt.Println(col.Name)
-	// // 	fmt.Println(sqlparser.String(col))
-	// // }
-	// ConstructCreateTableStmt(tableName, TableSpec.Columns)
-
-	// fmt.Println(options)
-	// fmt.Println(sqlparser.String(PartitionSpec))
-	// fmt.Println(PartitionSpec.Action)
-	// fmt.Println(PartitionSpec.Name)
-	// fmt.Println(PartitionSpec.Definitions)
 }
 
 // TODO: support multiple queries at a time, return multiple PlanTrees
