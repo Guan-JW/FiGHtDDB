@@ -110,6 +110,14 @@ func ServerName() string {
 	return serverName
 }
 
+func GetAllServerNames() []string {
+	names := make([]string, 0)
+	for k := range configs.SiteMetas {
+		names = append(names, k)
+	}
+	return names
+}
+
 func GetServerAddress(siteName string) string {
 	addr := configs.SiteMetas[siteName].Ip + ":" + strconv.Itoa(configs.SiteMetas[siteName].Port)
 	return addr
