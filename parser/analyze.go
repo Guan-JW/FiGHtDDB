@@ -473,21 +473,13 @@ func (physicalPlanTree *PlanTree) Analyze() {
 		if node.Nodeid == -1 {
 			// fmt.Println("Continue..")
 			continue
+		} else if node.NodeType >= 8 {
+			continue
 		} else if node.Locate == "" {
 			physicalPlanTree.Nodes[i].Locate = physicalPlanTree.getLocate(int64(i))
 			// fmt.Println("locate1=", physicalPlanTree.Nodes[i].Locate)
 		} else {
 			// fmt.Println("locate2=", physicalPlanTree.Nodes[i].Locate)
-		}
-	}
-	for i, node := range physicalPlanTree.Nodes {
-		if node.Nodeid == -1 {
-			continue
-			// physicalPlanTree.Nodes[i].Nodeid = 0 //               !!!!!!!!
-		} else if node.NodeType == 1 && !node.TransferFlag {
-			physicalPlanTree.Nodes[i].Status = 1
-		} else {
-			physicalPlanTree.Nodes[i].Status = 0
 		}
 	}
 }

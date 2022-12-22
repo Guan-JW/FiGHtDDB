@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/FiGHtDDB/storage"
 	"github.com/goccy/go-graphviz"
 	"github.com/goccy/go-graphviz/cgraph"
 )
@@ -29,14 +30,14 @@ type PlanTreeNode struct {
 	Locate       string // site name
 	TransferFlag bool   // 1 for transer, 0 for not
 	Dest         string // the site name of the dest
-	NodeType     int64  // 1 for table, 2 for select, 3 for projection, 4 for join, 5 for union, 6 for insert, 7 for delete
+	NodeType     int64  // 1 for table, 2 for select, 3 for projection, 4 for join, 5 for union, 6 for insert, 7 for delete, 8 for DB, 9 for Use, 10 for create table
 	//detail string//according to node_type, (1)table_name for table, (2)where_condition for select, (3)col_name for projection, (4)join_type for join, (5)nil for union
 	Where         string
 	Rel_cols      string // split(",",s)   !!!!
 	Cols          string // attributes used in the rest of the tree
 	ExecStmtCols  string // attributes used to construct execution stmts -- TmpTable.col
 	ExecStmtWhere string // where used to construct execution stmts -- TmpTable.col
-
+	// TableMeta     *storage.TableMeta
 	//cols_type string
 	// Join_type int64  //0 for x, 1 for =, 2 for natural
 	// Join_cols string //"customer_id,id"
@@ -49,6 +50,7 @@ type PlanTree struct {
 	Root        int64 // index of the root node
 	TmpTableNum int64
 	Nodes       [MaxNodeNum]PlanTreeNode
+	TableMeta   *storage.TableMeta // for create table (fragmentation)
 }
 
 type FragCond struct {
@@ -113,6 +115,7 @@ func (planTree *PlanTree) InitialPlanTree(txnID int64) {
 	planTree.NodeNum = 0
 	planTree.TxnID = txnID
 	planTree.TmpTableNum = 0
+	planTree.TableMeta = nil
 }
 
 // findEmptyNode returns the idx of first empty node
@@ -319,6 +322,36 @@ func (planTree *PlanTree) DrawPlanTree(query_id int, postfix string) {
 				planTree.DrawTreeNode(graph, i, &id)
 			}
 		}
+	} else if planTree.Nodes[planTree.Root].NodeType == 8 {
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode("create database " + node.TmpTable + "\nLocate: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+
+	} else if planTree.Nodes[planTree.Root].NodeType == 9 {
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode("use " + node.TmpTable + "\nLocate: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+
+	} else if planTree.Nodes[planTree.Root].NodeType == 10 {
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode(node.ExecStmtWhere + "\nLocate: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+
 	} else {
 		id := 0
 		planTree.DrawTreeNode(graph, planTree.Root, &id)
@@ -540,6 +573,36 @@ func (planTree *PlanTree) DrawPlanTreeTmpTable(query_id int, postfix string) {
 				planTree.DrawTreeNodeTmpTable(graph, i, &id)
 			}
 		}
+	} else if planTree.Nodes[planTree.Root].NodeType == 8 {
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode("create database " + node.TmpTable + "\nLocate: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+
+	} else if planTree.Nodes[planTree.Root].NodeType == 9 {
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode("use " + node.TmpTable + "\nLocate: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+
+	} else if planTree.Nodes[planTree.Root].NodeType == 10 {
+		for i := int64(1); i <= planTree.NodeNum; i++ {
+			node := planTree.Nodes[i]
+			_, err := graph.CreateNode(node.ExecStmtWhere + "\nLocate: " + node.Locate)
+			if err != nil {
+				log.Fatal(err)
+				// do something with error
+			}
+		}
+
 	} else {
 		id := 0
 		planTree.DrawTreeNodeTmpTable(graph, planTree.Root, &id)

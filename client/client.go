@@ -30,7 +30,7 @@ func main() {
 	defer cancel()
 
 	// hard-cord queries
-	var queries [25]string
+	var queries [30]string
 	queries[0] = `
 	select *
 	from customer`
@@ -145,6 +145,45 @@ func main() {
 	queries[20] = `
 	delete from customer 
 	where rank = 1`
+
+	queries[21] = `
+	create database db`
+
+	queries[22] = `
+	use db`
+
+	queries[23] = `
+	create table publisher (id int key, name char(100), nation char(3))
+	horizontal fragmentation (
+		(id < 104000 AND nation='PRC') on site main,
+		(id < 104000 AND nation='USA') on site segment1,
+		(id >= 104000 AND nation='PRC') on site segment2,
+		(id >= 104000 AND nation='USA') on site segment3
+	)`
+
+	queries[24] = `
+	create table book (id int key, title char(100), authors char(200), publisher_id int, copies int)
+	horizontal fragmentation (
+		(id < 205000) on site main,
+		(id >= 205000 AND id < 210000) on site segment1,
+		(id >= 210000) on site segment2
+	)`
+
+	queries[25] = `
+	create table customer (id int key, name char (25), rank int)
+	vertical fragmentation (
+		(id, name) on site main,
+		(id, rank) on site segment1
+	)`
+
+	queries[26] = `
+	create table orders (customer_id int, book_id int, quantity int)
+	horizontal fragmentation (
+		(customer_id < 307000 and book_id < 215000) on site main,
+		(customer_id < 307000 and book_id >= 215000) on site segment1,
+		(customer_id >= 307000 and book_id < 215000) on site segment2,
+		(customer_id >= 307000 and book_id >= 215000) on site segment3
+	)`
 
 	reader := bufio.NewReader(os.Stdin)
 	for {

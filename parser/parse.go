@@ -75,6 +75,32 @@ func CreateDeleteNode(TableName string, where string, locate string) PlanTreeNod
 	return node
 }
 
+func CreateDBNode(DBName string, locate string) PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 8
+	node.TmpTable = DBName
+	node.Locate = locate
+	return node
+}
+
+func CreateUseNode(DBName string, siteName string) PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 9
+	node.TmpTable = DBName
+	node.Locate = siteName
+	return node
+}
+
+// create table node for creating the same table on all sites
+func CreateInitialTableNode(TableName string, createString string, siteName string) PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 10
+	node.TmpTable = TableName
+	node.ExecStmtWhere = createString
+	node.Locate = siteName
+	return node
+}
+
 // ResetColsForWhere reset cols to get a unique colname
 func ResetColsForWhere(strin string) (strout string) {
 	strout = ""
@@ -269,6 +295,15 @@ func (logicalPlanTree *PlanTree) AddFilternNode(newNode PlanTreeNode) {
 	logicalPlanTree.Nodes[newroot] = newNode
 	logicalPlanTree.Root = newroot
 	logicalPlanTree.NodeNum++
+}
+
+// add single node : db, use, create table
+func (logicalPlanTree *PlanTree) AddSingleNode(newNode PlanTreeNode) int64 {
+	id := logicalPlanTree.findEmptyNode()
+	newNode.Nodeid = id
+	logicalPlanTree.Nodes[id] = newNode
+	logicalPlanTree.NodeNum++
+	return id
 }
 
 func (logicalPlanTree *PlanTree) buildBalanceTree() {
@@ -1294,6 +1329,260 @@ func (logicalPlanTree *PlanTree) buildDelete(sel *sqlparser.Delete) {
 	}
 }
 
+func GetSiteNames() []string {
+	sites := []string{"main", "segment1", "segment2", "segment3"}
+	return sites
+}
+
+func (logicalPlanTree *PlanTree) buildDatabase(sel *sqlparser.DBDDL) {
+	DBName := sel.DBName
+	sites := GetSiteNames()
+	for i, site := range sites {
+		id := logicalPlanTree.AddSingleNode(CreateDBNode(DBName, site))
+		if i == 0 {
+			logicalPlanTree.Root = id
+		}
+	}
+}
+
+func (logicalPlanTree *PlanTree) buildUse(sel *sqlparser.Use) {
+	DBName := sqlparser.String(sel.DBName)
+	sites := GetSiteNames()
+	for i, site := range sites {
+		id := logicalPlanTree.AddSingleNode(CreateUseNode(DBName, site))
+		if i == 0 {
+			logicalPlanTree.Root = id
+		}
+	}
+}
+
+//	type DDL struct {
+//		Action        string
+//		Table         TableName
+//		NewName       TableName
+//		IfExists      bool
+//		TableSpec     *TableSpec
+//		PartitionSpec *PartitionSpec
+//		VindexSpec    *VindexSpec
+//		VindexCols    []ColIdent
+//	}
+// type PartitionSpec struct {
+// 	Action      string
+// 	Name        ColIdent
+// 	Definitions []*PartitionDefinition
+// }
+// type PartitionDefinition struct {
+// 	Name     ColIdent
+// 	Limit    Expr
+// 	Maxvalue bool
+// }
+// type TableSpec struct {
+// 	Columns []*ColumnDefinition
+// 	Indexes []*IndexDefinition
+// 	Options string
+// }
+// type ColumnDefinition struct {
+// 	Name ColIdent
+// 	Type ColumnType
+// }
+// type ColumnType struct {
+// 	// The base type string
+// 	Type string
+
+// 	// Generic field options.
+// 	NotNull       BoolVal
+// 	Autoincrement BoolVal
+// 	Default       *SQLVal
+// 	OnUpdate      *SQLVal
+// 	Comment       *SQLVal
+
+// 	// Numeric field options
+// 	Length   *SQLVal
+// 	Unsigned BoolVal
+// 	Zerofill BoolVal
+// 	Scale    *SQLVal
+
+// 	// Text field options
+// 	Charset string
+// 	Collate string
+
+// 	// Enum values
+// 	EnumValues []string
+
+//		// Key specification
+//		KeyOpt ColumnKeyOption
+//	}
+func ConstructCreateTableStmt(tableName string, Columns []*sqlparser.ColumnDefinition) (string, []string) {
+	result := "create table " + tableName + " ("
+	var cols []string
+	for _, col := range Columns {
+		// fmt.Println(col.Name)
+		// fmt.Println(sqlparser.String(col))
+		result += sqlparser.String(col) + ", "
+		cols = append(cols, sqlparser.String(col.Name))
+	}
+	result = strings.TrimSuffix(result, ", ")
+	result += ")"
+	return result, cols
+}
+
+func ConstructVertFragCreateTableStmt(tableName string, Columns []*sqlparser.ColumnDefinition, Cols string) string {
+	result := "create table " + tableName + " ("
+	for _, col := range strings.Split(Cols, ",") {
+		for _, column := range Columns {
+			if sqlparser.String(column.Name) == col {
+				result += sqlparser.String(column) + ", "
+			}
+		}
+	}
+	result = strings.TrimSuffix(result, ", ")
+	result += ")"
+	return result
+}
+
+func (logicalPlanTree *PlanTree) buildTable(sel *sqlparser.DDL, sql string) {
+	f := func(c rune) bool {
+		return (c == ' ' || c == '=' || c == '<' || c == '>')
+	}
+	f1 := func(c rune) bool {
+		return !(c == '=' || c == '<' || c == '>')
+	}
+	// fmt.Println(sqlparser.String(sel))
+	tableName := sqlparser.String(sel.NewName)
+	TableSpec := sel.TableSpec
+	options := TableSpec.Options
+
+	if strings.Contains(options, "fragmentation") {
+		var stmts []string
+		sqls := strings.Split(sql, "(")
+		for _, stmt := range sqls {
+			if strings.Contains(stmt, "on site") {
+				stmts = append(stmts, stmt)
+			}
+		}
+		// fmt.Println(stmts)
+
+		if strings.Contains(options, "horizontal") {
+			createString, cols := ConstructCreateTableStmt(tableName, TableSpec.Columns)
+
+			var Tmeta storage.TableMeta
+			Tmeta.TableName = tableName
+			Tmeta.FragNum = len(stmts)
+
+			for i, stmt := range stmts {
+				condSite := strings.Split(stmt, ")")
+				cond := condSite[0]
+				site := condSite[1]
+				condReplacer := strings.NewReplacer("\t", "", "\n", "", "AND", "and", ",", "")
+				cond = condReplacer.Replace(cond)
+				SiteReplacer := strings.NewReplacer(" ", "", "\t", "", "\n", "", "on site", "", ",", "")
+				site = SiteReplacer.Replace(site)
+				// fmt.Println(cond, site)
+
+				// create table node
+				id := logicalPlanTree.AddSingleNode(CreateInitialTableNode(tableName, createString, site))
+				if i == 0 {
+					logicalPlanTree.Root = id
+				}
+
+				// add meta info
+				var schema storage.FragSchema
+				schema.SiteName = site
+				schema.Cols = cols
+
+				for _, condition := range strings.Split(cond, "and") {
+					operands := strings.FieldsFunc(condition, f)
+					ops := strings.FieldsFunc(condition, f1)
+
+					var Cond storage.Condition
+					Cond.Col = operands[0]
+					Cond.Comp = ops[0]
+					Cond.Value = operands[1]
+					for _, column := range TableSpec.Columns {
+						if sqlparser.String(column.Name) == Cond.Col {
+							Cond.Type = strings.Split(sqlparser.String(column), " ")[1]
+						}
+					}
+					schema.Conditions = append(schema.Conditions, Cond)
+				}
+				Tmeta.FragSchema = append(Tmeta.FragSchema, schema)
+			}
+			logicalPlanTree.TableMeta = &Tmeta
+			// fmt.Println(logicalPlanTree.TableMeta)
+		} else if strings.Contains(options, "vertical") {
+			var Tmeta storage.TableMeta
+			Tmeta.TableName = tableName
+			Tmeta.FragNum = len(stmts)
+
+			for i, stmt := range stmts {
+				condSite := strings.Split(stmt, ")")
+				cond := condSite[0]
+				site := condSite[1]
+				condReplacer := strings.NewReplacer(" ", "", "\t", "", "\n", "", "AND", "and")
+				cond = condReplacer.Replace(cond)
+				SiteReplacer := strings.NewReplacer(" ", "", "\t", "", "\n", "", "on site", "", ",", "")
+				site = SiteReplacer.Replace(site)
+				// fmt.Println(cond, site)
+
+				createString := ConstructVertFragCreateTableStmt(tableName, TableSpec.Columns, cond)
+				// fmt.Println(createString)
+
+				// create table node
+				id := logicalPlanTree.AddSingleNode(CreateInitialTableNode(tableName, createString, site))
+				if i == 0 {
+					logicalPlanTree.Root = id
+				}
+
+				// add meta info
+				var schema storage.FragSchema
+				schema.SiteName = site
+				schema.Cols = strings.Split(cond, ",")
+				Tmeta.FragSchema = append(Tmeta.FragSchema, schema)
+			}
+			logicalPlanTree.TableMeta = &Tmeta
+			// fmt.Println(logicalPlanTree.TableMeta)
+		}
+	} else {
+		// create the same table on all sites
+		// fmt.Println("Creating on all sites")
+		createString, cols := ConstructCreateTableStmt(tableName, TableSpec.Columns)
+		sites := GetSiteNames()
+
+		var Tmeta storage.TableMeta
+		Tmeta.TableName = tableName
+		Tmeta.FragNum = len(sites)
+
+		for i, site := range sites {
+			// add node for each site
+			id := logicalPlanTree.AddSingleNode(CreateInitialTableNode(tableName, createString, site))
+			if i == 0 {
+				logicalPlanTree.Root = id
+			}
+			// add meta info
+			var schema storage.FragSchema
+			schema.SiteName = site
+			schema.Cols = cols
+			Tmeta.FragSchema = append(Tmeta.FragSchema, schema)
+		}
+		logicalPlanTree.TableMeta = &Tmeta
+		// fmt.Println(logicalPlanTree.TableMeta)
+	}
+
+	// fmt.Println(tableName)
+	// fmt.Println(TableSpec)
+	// // for _, col := range TableSpec.Columns {
+	// // 	fmt.Println(col.Name)
+	// // 	fmt.Println(sqlparser.String(col))
+	// // }
+	// ConstructCreateTableStmt(tableName, TableSpec.Columns)
+
+	// fmt.Println(options)
+	// fmt.Println(sqlparser.String(PartitionSpec))
+	// fmt.Println(PartitionSpec.Action)
+	// fmt.Println(PartitionSpec.Name)
+	// fmt.Println(PartitionSpec.Definitions)
+}
+
 // TODO: support multiple queries at a time, return multiple PlanTrees
 func Parse(sql string, txnID int64) *PlanTree {
 	stmt, err := sqlparser.Parse(sql)
@@ -1313,10 +1602,17 @@ func Parse(sql string, txnID int64) *PlanTree {
 		planTree.buildInsert(stmt.(*sqlparser.Insert))
 	case *sqlparser.Delete:
 		planTree.buildDelete(stmt.(*sqlparser.Delete))
-		// case *sqlparser.Update:
-		// return handleUpdate(stmt.(*sqlparser.Update))
-		// case *sqlparser.DDL:
-		// 	fmt.Println(stmt)
+	// case *sqlparser.Update:
+	// return handleUpdate(stmt.(*sqlparser.Update))
+	case *sqlparser.DDL: // create table
+		sel := stmt.(*sqlparser.DDL)
+		if sel.Action == "create" {
+			planTree.buildTable(sel, sql)
+		}
+	case *sqlparser.DBDDL: // create database
+		planTree.buildDatabase(stmt.(*sqlparser.DBDDL))
+	case *sqlparser.Use: // use database
+		planTree.buildUse(stmt.(*sqlparser.Use))
 	}
 
 	return planTree
