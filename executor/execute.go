@@ -1019,9 +1019,11 @@ func CreateTable(tree *parser.PlanTree) {
 		createSql = strings.Replace(createSql, "key", "primary key", -1)
 		fmt.Println(createSql)
 		if node.Locate != "main" {
+
 			address := storage.GetServerAddress(node.Locate)
 			res2 := storage.ExecRemoteSql(createSql, address)
 			fmt.Println("remote insert", res2)
+
 		} else {
 			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 			client, err := sql.Open("postgres", connStr)
@@ -1032,6 +1034,9 @@ func CreateTable(tree *parser.PlanTree) {
 			fmt.Println("insert", res2, err)
 		}
 	}
+	t := tree.TableMeta
+	err := storage.StoreTableMeta(t)
+	fmt.Println(err)
 }
 func Execute(tree *parser.PlanTree) (string, int) {
 	// printTree(tree.Nodes[tree.Root], tree, 0)
