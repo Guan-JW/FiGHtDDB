@@ -42,7 +42,7 @@ func main() {
 	queries[2] = `
 	select book.title
 	from book
-	where copies>5000`
+	where copies>7000`
 
 	queries[3] = `
 	select orders.customer_id,quantity
@@ -96,17 +96,20 @@ func main() {
 	and orders.quantity>1
 	and publisher.nation='PRC'`
 
+	// queries[10] = `
+	// select customer.name, book.title, publisher.name, orders.quantity
+	// from customer, book, publisher, orders
+	// where customer.id=orders.customer_id
+	// and book.id=orders.book_id
+	// and book.publisher_id=publisher.id
+	// and book.id > 207000
+	// and book.id < 213000
+	// and book.copies>100
+	// and orders.quantity>1
+	// and publisher.nation='PRC'
+
 	queries[10] = `
-	select customer.name, book.title, publisher.name, orders.quantity 
-	from customer, book, publisher, orders 
-	where customer.id=orders.customer_id 
-	and book.id=orders.book_id 
-	and book.publisher_id=publisher.id 
-	and book.id > 207000 
-	and book.id < 213000 
-	and book.copies>100 
-	and orders.quantity>1 
-	and publisher.nation='PRC'
+	select * from customer where customer.rank=1
 	`
 	queries[11] = `
 	insert into customer(id, name, rank) 
@@ -153,7 +156,7 @@ func main() {
 	use db`
 
 	queries[23] = `
-	create table publisher (id int key, name char(100), nation char(3))
+	create table publisher1 (id int key, name char(100), nation char(3))
 	horizontal fragmentation (
 		(id < 104000 AND nation='PRC') on site main,
 		(id < 104000 AND nation='USA') on site segment1,
@@ -185,6 +188,20 @@ func main() {
 		(customer_id >= 307000 and book_id >= 215000) on site segment3
 	)`
 
+	queries[27] = `
+	select book.title, book.copies, publisher.name, publisher.nation 
+	from book,publisher 
+	where book.publisher_id=publisher.id and 
+	publisher.nation='PRC'and book.copies>1000;
+	`
+
+	queries[28] = `
+	select customer.name, book.title, publisher.name, orders.quantity 
+	from customer,book,publisher,orders 
+	where customer.id=orders.customer_id 
+	and book.id=orders.book_id and book.publisher_id=publisher.id 
+	and book.id>210000 and publisher.nation='PRC' 
+	and orders.customer_id >= 307000 and orders.book_id < 215000;`
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
@@ -197,7 +214,7 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
-		if id < 0 || id > 20 {
+		if id < 0 || id > 30 {
 			fmt.Println("id should be in the range[0,20]")
 			continue
 		}

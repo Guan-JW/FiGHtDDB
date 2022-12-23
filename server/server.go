@@ -28,7 +28,7 @@ func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult,
 	planTree := parser.Parse(in.SqlStr, txnId)
 	planTree.Analyze()
 	planTree = optimizer.Optimize(planTree)
-	// planTree.DrawPlanTreeTmpTable(0, "tmp")
+	planTree.DrawPlanTreeTmpTable(0, "tmp")
 	res, resLen := executor.Execute(planTree)
 
 	// TODO: execute planTree
