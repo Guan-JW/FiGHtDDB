@@ -140,6 +140,7 @@ func merge_filters(pt *parser.PlanTree, beginNode int64, parentID int64) {
 		oldWhere := node.Where
 		filterConditions := node.Where
 		transferFlag := node.TransferFlag
+		oldTableName := node.TmpTable
 		for filter := &pt.Nodes[node.Left]; ; filter = &pt.Nodes[filter.Left] {
 
 			if filter.NodeType != 2 { // finish of consecutive selection nodes
@@ -183,11 +184,18 @@ func merge_filters(pt *parser.PlanTree, beginNode int64, parentID int64) {
 						}
 						filter.Parent = parentID
 						filter.TransferFlag = transferFlag
-
+						// replace table name
+						pt.Nodes[parentID].ExecStmtCols = strings.ReplaceAll(pt.Nodes[parentID].ExecStmtCols, oldTableName, filter.TmpTable)
+						pt.Nodes[parentID].ExecStmtWhere = strings.ReplaceAll(pt.Nodes[parentID].ExecStmtWhere, oldTableName, filter.TmpTable)
 					} else {
 						// fmt.Println("Adding new Where node...")
+						parentID := node.Parent
 						filter.TransferFlag = transferFlag
 						addMergeWhereNode(pt, parser.CreateSelectionNode(pt.GetTmpTableName(), newWhere), node.Nodeid, pt.Nodes[filter.Parent].Nodeid, filter.Nodeid)
+						// replace table name
+						newTableName := pt.Nodes[pt.Nodes[filter.Nodeid].Parent].TmpTable
+						pt.Nodes[parentID].ExecStmtCols = strings.ReplaceAll(pt.Nodes[parentID].ExecStmtCols, oldTableName, newTableName)
+						pt.Nodes[parentID].ExecStmtWhere = strings.ReplaceAll(pt.Nodes[parentID].ExecStmtWhere, oldTableName, newTableName)
 					}
 				}
 
