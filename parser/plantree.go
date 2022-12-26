@@ -30,7 +30,7 @@ type PlanTreeNode struct {
 	Locate       string // site name
 	TransferFlag bool   // 1 for transer, 0 for not
 	Dest         string // the site name of the dest
-	NodeType     int64  // 1 for table, 2 for select, 3 for projection, 4 for join, 5 for union, 6 for insert, 7 for delete, 8 for DB, 9 for Use, 10 for create table
+	NodeType     int64  // 1 for table, 2 for select, 3 for projection, 4 for join, 5 for union, 6 for insert, 7 for delete, 8 for DB, 9 for Use, 10 for create table, 11 for show meta
 	//detail string//according to node_type, (1)table_name for table, (2)where_condition for select, (3)col_name for projection, (4)join_type for join, (5)nil for union
 	Where         string
 	Rel_cols      string // split(",",s)   !!!!
@@ -352,6 +352,12 @@ func (planTree *PlanTree) DrawPlanTree(query_id int, postfix string) {
 			}
 		}
 
+	} else if planTree.Nodes[planTree.Root].NodeType == 11 {
+		_, err := graph.CreateNode("Show meta")
+		if err != nil {
+			log.Fatal(err)
+			// do something with error
+		}
 	} else {
 		id := 0
 		planTree.DrawTreeNode(graph, planTree.Root, &id)
@@ -603,6 +609,12 @@ func (planTree *PlanTree) DrawPlanTreeTmpTable(query_id int, postfix string) {
 			}
 		}
 
+	} else if planTree.Nodes[planTree.Root].NodeType == 11 {
+		_, err := graph.CreateNode("Show meta")
+		if err != nil {
+			log.Fatal(err)
+			// do something with error
+		}
 	} else {
 		id := 0
 		planTree.DrawTreeNodeTmpTable(graph, planTree.Root, &id)

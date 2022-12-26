@@ -101,6 +101,12 @@ func CreateInitialTableNode(TableName string, createString string, siteName stri
 	return node
 }
 
+func CreateMetaNode() PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 11
+	return node
+}
+
 // ResetColsForWhere reset cols to get a unique colname
 func ResetColsForWhere(strin string) (strout string) {
 	strout = ""
@@ -1509,6 +1515,14 @@ func (logicalPlanTree *PlanTree) buildTable(sel *sqlparser.DDL, sql string) {
 
 }
 
+func (logicalPlanTree *PlanTree) buildShowMeta(sel *sqlparser.Show) {
+	if sel.Type != "meta" {
+		return
+	}
+
+	logicalPlanTree.Root = logicalPlanTree.AddSingleNode(CreateMetaNode())
+}
+
 // TODO: support multiple queries at a time, return multiple PlanTrees
 func Parse(sql string, txnID int64) *PlanTree {
 	stmt, err := sqlparser.Parse(sql)
@@ -1539,6 +1553,8 @@ func Parse(sql string, txnID int64) *PlanTree {
 		planTree.buildDatabase(stmt.(*sqlparser.DBDDL))
 	case *sqlparser.Use: // use database
 		planTree.buildUse(stmt.(*sqlparser.Use))
+	case *sqlparser.Show:
+		planTree.buildShowMeta(stmt.(*sqlparser.Show))
 	}
 
 	return planTree

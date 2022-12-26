@@ -176,4 +176,16 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+
+	st, err := storage.GetTableMeta("orders")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(st.TableName)
+	fmt.Println(st.FragSchema[0].Cols)
+	fmt.Println(st.FragSchema[3].Conditions[0].Col)
+	fmt.Println(st.FragSchema[1].Conditions[1].Value)
+	fmt.Println(st.FragSchema[2].Conditions[0].Comp)
 }
