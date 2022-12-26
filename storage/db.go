@@ -220,7 +220,6 @@ func (db *Db) GetSchema(tableName string) (string, int) {
 
 	res, err := client.Query(query)
 	if err != nil {
-
 		return "", -1
 	}
 	defer res.Close()
@@ -231,4 +230,29 @@ func (db *Db) GetSchema(tableName string) (string, int) {
 	}
 
 	return str.String, 0
+}
+
+func GetTableCount(tableName string, siteName string) int {
+	db := configs.DbMetas[siteName]
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.DbName, db.Port, db.User, db.Password, db.Sslmode)
+	client, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Println(err)
+		return 0
+	}
+	defer client.Close()
+
+	query := fmt.Sprintf("select count(*) from %s;", tableName)
+	res, err := client.Query(query)
+	if err != nil {
+		return 0
+	}
+	defer res.Close()
+
+	cnt := 0
+	for res.Next() {
+		res.Scan(&cnt)
+	}
+
+	return cnt
 }

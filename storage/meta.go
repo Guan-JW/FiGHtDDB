@@ -123,6 +123,36 @@ func GetServerAddress(siteName string) string {
 	return addr
 }
 
+func GetAllTableMetas() []TableMeta {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   configs.EtcdEndpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatal(err)
+		return nil
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	resp, err := cli.Get(ctx, "tables/", clientv3.WithPrefix())
+	cancel()
+
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	tableMetas := make([]TableMeta,0)
+	for _,kvs := range(resp.Kvs) {
+		t := new(TableMeta)
+		fromGoB64(string(kvs.Value), t)
+		tableMetas = append(tableMetas, *t)
+	}
+
+	return tableMetas
+}
+
 func GetLocalDbConnStr() (string, string, string, int, string) {
 	return configs.DbMetas[serverName].DbName, configs.DbMetas[serverName].User, configs.DbMetas[serverName].Password,
 		configs.DbMetas[serverName].Port, configs.DbMetas[serverName].Sslmode

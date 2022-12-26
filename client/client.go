@@ -218,14 +218,14 @@ func main() {
 			fmt.Println("id should be in the range[0,20]")
 			continue
 		}
-		// fmt.Println("ready")
+		start := time.Now()
 		r, err := c.SendSql(ctx, &pb.SqlRequest{SqlStr: queries[id]})
-		// fmt.Println("done")
+		elapsed := time.Since(start)
 		if err != nil {
 			log.Fatal("failed to parse: ", err)
 		}
 		fmt.Println(r.Rc)
 		fmt.Println(r.Data)
-		// printTree(planTree)
+		fmt.Println("total run time: ", elapsed)
 	}
 }
