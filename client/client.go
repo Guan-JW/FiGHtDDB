@@ -202,6 +202,10 @@ func main() {
 	and book.id=orders.book_id and book.publisher_id=publisher.id 
 	and book.id>210000 and publisher.nation='PRC' 
 	and orders.customer_id >= 307000 and orders.book_id < 215000;`
+
+	queries[29] = `
+	show meta`
+
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')

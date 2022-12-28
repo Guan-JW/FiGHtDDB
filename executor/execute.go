@@ -1044,6 +1044,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 	tree.Print()
 	resultStr := ""
 	resultLen := 0
+
 	if tree.Nodes[tree.Root].NodeType == 6 {
 		ExecuteInsert(tree)
 		resultStr = "insert success"
@@ -1072,18 +1073,52 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		fmt.Println("create table success")
 		resultStr = "table success"
 		resultLen = 0
+	} else if tree.Nodes[tree.Root].NodeType == 11 {
+		tableNameList := storage.GetAllTableMetas()
+		for _, table := range tableNameList {
+			fmt.Println(table)
+			tableName := table.TableName
+			fragNum := table.FragNum
+			fragSchema := table.FragSchema
+
+			resultStr += "Table: " + tableName + "\n"
+			resultStr += "fragNum: " + string(fragNum) + "\n"
+			for _, tableInfo := range fragSchema {
+				resultStr += "-------\n"
+				site := tableInfo.SiteName
+				Cols := tableInfo.Cols
+				Conditions := tableInfo.Conditions
+				resultStr += "sitename: " + site + "\n"
+				resultStr += "colname: "
+				for _, c := range Cols {
+					resultStr += c + " "
+				}
+				resultStr += "\n"
+				resultStr += "conditions: "
+				for _, s := range Conditions {
+					resultStr += s.Col + " " + s.Type + s.Comp + s.Value + ";"
+				}
+				resultStr += "\n"
+				tableCount := storage.GetTableCount(tableName, site)
+				resultStr += "count: " + string(tableCount) + "\n"
+
+			}
+			resultStr += "=======\n"
+		}
+		// tableCount := storage.GetTableCount()
 	} else {
 		var resp Tuples
 		executeNode(tree.Nodes[tree.Root], tree, resp)
 		result := printResult(tree)
 		resultLen = len(result)
-		var resultStr string
+		// var resultStr string
 		i := 0
 		for _, a := range result {
 			if i > 10 {
 				break
 			}
 			resultStr += a + "\n"
+
 			i += 1
 
 		}
@@ -1109,6 +1144,6 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		// fmt.Println(fres, fres == "(0)", fres == "(1)")
 	}
 	// tree.Print()
-
+	fmt.Println("resultStr", resultStr)
 	return resultStr, resultLen
 }
