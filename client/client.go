@@ -45,21 +45,22 @@ func main() {
 	where copies>7000`
 
 	queries[3] = `
-	select orders.customer_id,quantity
-	from orders
-	where quantity<8`
+	select customer_id, book_id
+	from orders;`
 
 	queries[4] = `
-	select book.title, book.copies, publisher.name, publisher.nation
-	from book, publisher
-	where book.publisher_id = publisher.id
-	and publisher.nation='USA'
-	and book.copies>1000`
+	select book.title, book.copies, publisher.name, publisher.nation 
+	from book,publisher 
+	where book.publisher_id=publisher.id and 
+	publisher.nation='PRC'and book.copies>1000;`
 
 	queries[5] = `
-	select customer.name, orders.quantity
-	from customer,orders
-	where customer.id=orders.customer_id`
+	select customer.name, book.title, publisher.name, orders.quantity 
+	from customer,book,publisher,orders 
+	where customer.id=orders.customer_id 
+	and book.id=orders.book_id and book.publisher_id=publisher.id 
+	and book.id>210000 and publisher.nation='PRC' 
+	and orders.customer_id >= 307000 and orders.book_id < 215000;`
 
 	queries[6] = `
 	select customer.name, customer.rank, orders.quantity

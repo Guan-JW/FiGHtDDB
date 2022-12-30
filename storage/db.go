@@ -73,7 +73,7 @@ func ExecRemoteSql(sqlStr string, addr string) int {
 
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return 1
+		return 2
 	}
 	defer conn.Close()
 
@@ -120,7 +120,7 @@ func ExecRemoteSelect(sqlStr string, addr string) string {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return "1"
+		return "2"
 	}
 	defer conn.Close()
 
@@ -188,7 +188,7 @@ func GetRemoteSchema(sqlStr string, addr string) string {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
-		return "1"
+		return "2"
 	}
 	defer conn.Close()
 
