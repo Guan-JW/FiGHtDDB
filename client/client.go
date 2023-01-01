@@ -133,11 +133,10 @@ func main() {
 	values(300001, 205001,5)`
 
 	queries[16] = `
-	delete from orders`
+	delete from customer`
 
 	queries[17] = `
-	Delete from book 
-	where copies = 100`
+	Delete from publisher`
 
 	queries[18] = `
 	delete from publisher 

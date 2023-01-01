@@ -1169,6 +1169,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		if res == 0 {
 			resultLen = 0
 			resultStr = "connect error"
+			return resultStr, resultLen
 		}
 		result := printResult(tree)
 		resultLen = len(result)
