@@ -7,7 +7,7 @@ NODE2=segment1
 NODE3=segment2
 NODE4=segment3
 
-DATADIR="/home/ddb/ddbe"
+DATADIR="/home/ddb/FiGHtDDB"
 
 function sync {
     rm -rf deploy.log

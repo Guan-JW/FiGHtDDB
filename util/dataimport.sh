@@ -17,8 +17,8 @@ CUSTOMER="drop table if exists customer; create table customer (id int primary k
 BOOK="drop table if exists book; create table book (id int primary key, title text, authors text, publisher_id int, copies int);"
 ORDERS="drop table if exists orders; create table orders (customer_id int, book_id int, quantity int);"
 
-PROJECTDIR="/home/ddb/ddbe"
-DATASOURCE="/home/ddb/ddbe/data"
+PROJECTDIR="/home/ddb/FiGHtDDB"
+DATASOURCE="/home/ddb/FiGHtDDB/data"
 DATADEST="/home/"
 DATAPATH="/home/data/"
 
@@ -46,6 +46,11 @@ function createTable {
     ssh ddb@${HOST2} "docker exec ${PG2} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
     ssh ddb@${HOST3} "docker exec ${PG3} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
     ssh ddb@${HOST3} "docker exec ${PG4} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
+}
+
+function storeTableMeta {
+    cd ${PROJECTDIR};
+    go run main.go
 }
 
 function mvfile {
@@ -86,7 +91,7 @@ start_time=$(date +%s)
 createTable
 mvfile
 importDatabase
-storeTableMeta
+# storeTableMeta
 outputMeta
 end_time=$(date +%s)
 cost_time=$[ $end_time-$start_time ]

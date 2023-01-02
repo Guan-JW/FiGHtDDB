@@ -148,6 +148,7 @@ func DropTable(tableName string) {
 	//清理main的tmptable
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
+	defer client.Close()
 	// nodeType := node.NodeType
 	// siteName := node.Locate
 	// ServerName := storage.ServerName()
@@ -157,6 +158,7 @@ func DropTable(tableName string) {
 	sqlStr := "drop table if exists " + tableName
 
 	stmt, _ := client.Prepare(sqlStr) //err
+	defer stmt.Close()
 	res, _ := stmt.Exec()             //err
 	println(res)
 
@@ -167,6 +169,7 @@ func CleanTmpTable(node parser.PlanTreeNode) {
 	//清理main的tmptable
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
+	defer client.Close()
 	nodeType := node.NodeType
 	siteName := node.Locate
 	ServerName := storage.ServerName()
@@ -179,6 +182,7 @@ func CleanTmpTable(node parser.PlanTreeNode) {
 		sqlStr := "drop table if exists " + tablename
 
 		stmt, _ := client.Prepare(sqlStr) //err
+		defer stmt.Close()
 		res, _ := stmt.Exec()             //err
 		println(res)
 
@@ -190,6 +194,7 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
+	defer client.Close()
 	fmt.Println("SP client:", err)
 
 	var sqlStr string
@@ -214,6 +219,7 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int
 		// _, fres := client.Query(findQuery)
 		// if fres != nil {
 		stmt, err := client.Prepare(sqlStr) //err
+		defer stmt.Close()
 		fmt.Println("SP prepare:", err)
 		res, err := stmt.Exec() //err
 		fmt.Println("SP exec:", err)
@@ -273,6 +279,7 @@ func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	fmt.Println("scan client:", err)
+	defer client.Close()
 
 	var sqlStr string
 	tableName := tree.Nodes[node.Left].TmpTable
@@ -292,6 +299,7 @@ func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 		// fmt.Println("sel:", sqlStr)
 		stmt, err := client.Prepare(sqlStr) //err
 		fmt.Println("sel prepare:", err)
+		defer stmt.Close()
 		res, err := stmt.Exec() //err
 		fmt.Println("sel exec:", err)
 		println(res)
@@ -340,6 +348,7 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	fmt.Println("union client:", err)
+	defer client.Close()
 
 	var sqlStr string
 	leftTableName := tree.Nodes[node.Left].TmpTable
@@ -380,6 +389,7 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 		fmt.Println("union:", sqlStr)
 		stmt, err := client.Prepare(sqlStr) //err
 		fmt.Println("union prepare:", err)
+		defer stmt.Close()
 		res, err := stmt.Exec() //err
 		fmt.Println("union exec:", err)
 		println(res)
@@ -490,6 +500,7 @@ func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) 
 func getTmpTable(node parser.PlanTreeNode, address string) int {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
+	defer client.Close()
 
 	tableName := node.TmpTable
 	// fmt.Println("tmpaddr", address)
@@ -502,7 +513,7 @@ func getTmpTable(node parser.PlanTreeNode, address string) int {
 	// fmt.Println("createsql", CreateSql, address)
 
 	stmt, err := client.Prepare(CreateSql)
-
+	defer stmt.Close()
 	fmt.Println("tmpcreate prepare", err)
 	res, err := stmt.Exec()
 	fmt.Println("tmp create", res, err)
@@ -519,6 +530,7 @@ func getTmpTable(node parser.PlanTreeNode, address string) int {
 	insertQuery += insertPlus + ";"
 
 	stmt2, err := client.Prepare(insertQuery)
+	defer stmt2.Close()
 	fmt.Println("tmpinsert prepare", err)
 	res2, err := stmt2.Exec()
 	fmt.Println("[trans amount]", res2, err)
@@ -569,7 +581,8 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	fmt.Println("join client:", err)
-
+	defer client.Close()
+	
 	var sqlStr string
 	leftTableName := tree.Nodes[node.Left].TmpTable
 	rightTableName := tree.Nodes[node.Right].TmpTable
@@ -627,6 +640,7 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 		// fmt.Println("join:", sqlStr)
 		stmt, err := client.Prepare(sqlStr) //err
 		fmt.Println("join prepare:", err)
+		defer stmt.Close()
 		res, err := stmt.Exec() //err
 		fmt.Println("join exec:", err)
 		println(res)
@@ -738,6 +752,7 @@ func generateCreateQuery(node parser.PlanTreeNode) string {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	fmt.Println("create client:", err)
+	defer client.Close()
 
 	var create_sql sql.NullString
 	query := "select showcreatetable('public','table_name');"
@@ -745,6 +760,7 @@ func generateCreateQuery(node parser.PlanTreeNode) string {
 	fmt.Println("create query", query)
 
 	rows, err := client.Query(query)
+	defer rows.Close()
 	fmt.Println("create query:", err)
 	rows.Next()
 	err = rows.Scan(&create_sql)
@@ -765,6 +781,7 @@ func generateInsertQuery(node parser.PlanTreeNode) ([]string, bool) {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, err := sql.Open("postgres", connStr)
 	fmt.Println("insert client:", err)
+	defer client.Close()
 
 	mySlice := make([]string, 0)
 	insert_query := "insert into " + node.TmpTable + " values "
@@ -870,6 +887,7 @@ func executeOperator(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuple
 func printResult(tree *parser.PlanTree) []string {
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
+	defer client.Close()
 
 	result := make([]string, 0)
 	// var result string
@@ -977,6 +995,7 @@ func ExecuteInsert(tree *parser.PlanTree) {
 		} else {
 			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 			client, err := sql.Open("postgres", connStr)
+			defer client.Close()
 			fmt.Println("insert err", err)
 			stmt2, err := client.Prepare(insertSql)
 			fmt.Println("insert prepare", err)
@@ -1004,6 +1023,7 @@ func ExecuteDelete(tree *parser.PlanTree) {
 		if node.Locate == "main" {
 			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 			client, err := sql.Open("postgres", connStr)
+			defer client.Close()
 			fmt.Println("delete err", err)
 			stmt2, err := client.Prepare(delSql)
 			fmt.Println("delete prepare", err)
@@ -1031,6 +1051,7 @@ func ExecuteCreateDB(tree *parser.PlanTree) {
 		} else {
 			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 			client, err := sql.Open("postgres", connStr)
+			defer client.Close()
 			fmt.Println("insert err", err)
 			stmt2, err := client.Prepare(createSql)
 			fmt.Println("insert prepare", err)
@@ -1055,6 +1076,7 @@ func UseDB(tree *parser.PlanTree) {
 			fmt.Println(" main")
 			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 			client, err := sql.Open("postgres", connStr)
+			defer client.Close()
 			fmt.Println("insert err", err)
 			stmt2, err := client.Prepare(useSql)
 			fmt.Println("insert prepare", err)
@@ -1081,6 +1103,7 @@ func CreateTable(tree *parser.PlanTree) {
 		} else {
 			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 			client, err := sql.Open("postgres", connStr)
+			defer client.Close()
 			fmt.Println("insert err", err)
 			stmt2, err := client.Prepare(createSql)
 			fmt.Println("insert prepare", err)
@@ -1092,6 +1115,24 @@ func CreateTable(tree *parser.PlanTree) {
 	err := storage.StoreTableMeta(t)
 	fmt.Println(err)
 }
+
+func GetSites(tree *parser.PlanTree) string {
+	maps := make(map[string]int, 0)
+	for i := 0; i < int(tree.NodeNum); i++ {
+		maps[tree.Nodes[i].Locate] = 1
+	}
+
+	ans := ""
+	for k := range(maps) {
+		if k != "" {
+			ans += k + ","
+		}
+	}
+	ans = strings.TrimSuffix(ans, ",")
+
+	return ans
+}
+
 func Execute(tree *parser.PlanTree) (string, int) {
 	// printTree(tree.Nodes[tree.Root], tree, 0)
 	// tree.Print()
@@ -1104,19 +1145,19 @@ func Execute(tree *parser.PlanTree) (string, int) {
 
 	if tree.Nodes[tree.Root].NodeType == 6 {
 		ExecuteInsert(tree)
-		resultStr = "insert success"
+		resultStr = "insert success\n"
 		resultLen = 0
 	} else if tree.Nodes[tree.Root].NodeType == 7 {
 		// tree.Print()
 		fmt.Println("delete execute")
 		ExecuteDelete(tree)
-		resultStr = "delete success"
+		resultStr = "delete success\n"
 		resultLen = 0
 	} else if tree.Nodes[tree.Root].NodeType == 8 {
 		// tree.Print()
 		ExecuteCreateDB(tree)
 		fmt.Println("create db success")
-		resultStr = "db success"
+		resultStr = "db success\n"
 		resultLen = 0
 	} else if tree.Nodes[tree.Root].NodeType == 9 {
 		// tree.Print()
@@ -1128,7 +1169,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		// tree.Print()
 		CreateTable(tree)
 		fmt.Println("create table success")
-		resultStr = "table success"
+		resultStr = "table success\n"
 		resultLen = 0
 	} else if tree.Nodes[tree.Root].NodeType == 11 {
 		tableNameList := storage.GetAllTableMetas()
@@ -1139,7 +1180,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 			fragSchema := table.FragSchema
 
 			resultStr += "Table: " + tableName + "\n"
-			resultStr += "fragNum: " + string(fragNum) + "\n"
+			resultStr += "fragNum: " + strconv.Itoa(fragNum) + "\n"
 			for _, tableInfo := range fragSchema {
 				resultStr += "-------\n"
 				site := tableInfo.SiteName
@@ -1157,7 +1198,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 				}
 				resultStr += "\n"
 				tableCount := storage.GetTableCount(tableName, site)
-				resultStr += "count: " + string(tableCount) + "\n"
+				resultStr += "count: " + strconv.Itoa(tableCount) + "\n"
 
 			}
 			resultStr += "=======\n"
@@ -1168,7 +1209,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		res := executeNode(tree.Nodes[tree.Root], tree, resp)
 		if res == 0 {
 			resultLen = 0
-			resultStr = "connect error"
+			resultStr = "connect error\n"
 			return resultStr, resultLen
 		}
 		result := printResult(tree)

@@ -13,7 +13,9 @@ import (
 	"github.com/FiGHtDDB/util"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 type Db struct {
@@ -70,24 +72,25 @@ func (db *Db) FetchTuples(tableName string, resp *[]byte) {
 func ExecRemoteSql(sqlStr string, addr string) int {
 
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+	if err != nil{
+		log.Println("did not connect: ", err)
 		return 2
 	}
 	defer conn.Close()
-
+	
 	c := pb.NewDataBaseClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-
 	r, err := c.ExecSql(ctx, &pb.SqlRequest{SqlStr: sqlStr})
 
 	if err != nil {
-		log.Fatal("failed to parse: ", err)
+		sta,_ := status.FromError(err)
+		log.Println(err)
+		if sta.Code() == codes.Unavailable {
+			return 2
+		}
 		return 1
 	}
-
 	return int(r.Rc)
 }
 
@@ -130,7 +133,11 @@ func ExecRemoteSelect(sqlStr string, addr string) string {
 
 	r, err := c.ExecSelect(ctx, &pb.SqlRequest{SqlStr: sqlStr})
 	if err != nil {
-		log.Fatal("failed to parse: ", err)
+		sta,_ := status.FromError(err)
+		log.Println(err)
+		if sta.Code() == codes.Unavailable {
+			return "2"
+		}
 		return "1"
 	}
 
@@ -199,7 +206,11 @@ func GetRemoteSchema(sqlStr string, addr string) string {
 	r, err := c.GetSchema(ctx, &pb.SqlRequest{SqlStr: sqlStr})
 
 	if err != nil {
-		log.Fatal("failed to parse: ", err)
+		sta,_ := status.FromError(err)
+		log.Println(err)
+		if sta.Code() == codes.Unavailable {
+			return "2"
+		}
 		return "1"
 	}
 
@@ -234,7 +245,8 @@ func (db *Db) GetSchema(tableName string) (string, int) {
 
 func GetTableCount(tableName string, siteName string) int {
 	db := configs.DbMetas[siteName]
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.DbName, db.Port, db.User, db.Password, db.Sslmode)
+	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s host=%s",
+		db.DbName, db.Port, db.User, db.Password, db.Sslmode, configs.SiteMetas[siteName].Ip)
 	client, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Println(err)
@@ -245,6 +257,7 @@ func GetTableCount(tableName string, siteName string) int {
 	query := fmt.Sprintf("select count(*) from %s;", tableName)
 	res, err := client.Query(query)
 	if err != nil {
+		fmt.Println(err)
 		return 0
 	}
 	defer res.Close()

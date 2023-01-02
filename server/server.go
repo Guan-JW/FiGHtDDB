@@ -28,10 +28,11 @@ func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult,
 	planTree := parser.Parse(in.SqlStr, txnId)
 	planTree.Analyze()
 	planTree = optimizer.Optimize(planTree)
-	planTree.DrawPlanTree(6, "")
+	planTree.DrawPlanTree(0, "")
 	res, resLen := executor.Execute(planTree)
+	res += executor.GetSites(planTree)
 
-	// TODO: execute planTree
+	fmt.Println("node number: ", planTree.NodeNum)
 	fmt.Println(resLen)
 	fmt.Println(res)
 	return &pb.SqlResult{Data: res, Rc: int32(resLen)}, nil
@@ -84,7 +85,7 @@ func NewServer() (*Server, error) {
 
 func main() {
 	if len(os.Args) != 2 {
-		log.Fatal("please specify servername. port")
+		log.Fatal("please specify servername")
 		return
 	}
 

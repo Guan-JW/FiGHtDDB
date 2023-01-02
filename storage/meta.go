@@ -264,3 +264,25 @@ func StoreTableMeta(table *TableMeta) error {
 
 	return nil
 }
+
+func DropTableMeta(tableName string) error {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   configs.EtcdEndpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err = cli.Delete(ctx, "tables/" + tableName)
+	cancel()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/FiGHtDDB/comm"
@@ -32,17 +33,17 @@ func main() {
 	// hard-cord queries
 	var queries [30]string
 	queries[0] = `
-	select *
-	from customer`
+	select publisher.name
+	from publisher;`
 
 	queries[1] = `
-	select publisher.name
-	from publisher`
+	select *
+	from customer;`
 
 	queries[2] = `
 	select book.title
 	from book
-	where copies>7000`
+	where copies>7000;`
 
 	queries[3] = `
 	select customer_id, book_id
@@ -66,7 +67,7 @@ func main() {
 	select customer.name, customer.rank, orders.quantity
 	from customer,orders
 	where customer.id=orders.customer_id
-	and customer.rank=1`
+	and customer.rank=1;`
 
 	queries[7] = `
 	select customer.name, orders.quantity, book.title
@@ -74,7 +75,7 @@ func main() {
 	where customer.id=orders.customer_id
 	and book.id=orders.book_id
 	and customer.rank=1
-	and book.copies>5000`
+	and book.copies>5000;`
 
 	queries[8] = `
 	select customer.name, book.title, publisher.name, orders.quantity
@@ -84,7 +85,7 @@ func main() {
 	and book.publisher_id=publisher.id
 	and book.id>220000
 	and publisher.nation='USA'
-	and orders.quantity>1`
+	and orders.quantity>1;`
 
 	queries[9] = `
 	select customer.name, book.title, publisher.name, orders.quantity
@@ -95,7 +96,7 @@ func main() {
 	and customer.id>308000
 	and book.copies>100
 	and orders.quantity>1
-	and publisher.nation='PRC'`
+	and publisher.nation='PRC';`
 
 	// queries[10] = `
 	// select customer.name, book.title, publisher.name, orders.quantity
@@ -110,7 +111,7 @@ func main() {
 	// and publisher.nation='PRC'
 
 	queries[10] = `
-	select * from customer where customer.rank=1
+	select * from customer where customer.rank=1;
 	`
 	queries[11] = `
 	insert into customer(id, name, rank) 
@@ -118,51 +119,51 @@ func main() {
 
 	queries[12] = `
 	insert into publisher(id, name, nation) 
-	values(104001,'High Education Press', 'PRC')`
+	values(104001,'High Education Press', 'PRC');`
 
 	queries[13] = `
 	insert into customer(id, name, rank) 
-	values(300002,'Xiaohong', 1)`
+	values(300002,'Xiaohong', 1);`
 
 	queries[14] = `
 	insert into book (id, title, authors, publisher_id, copies) 
-	values(205001, 'DDB', 'Oszu', 104001, 100)`
+	values(205001, 'DDB', 'Oszu', 104001, 100);`
 
 	queries[15] = `
 	insert into orders (customer_id, book_id, quantity) 
-	values(300001, 205001,5)`
+	values(300001, 205001,5);`
 
 	queries[16] = `
-	delete from customer`
+	delete from customer;`
 
 	queries[17] = `
-	Delete from publisher`
+	Delete from publisher;`
 
 	queries[18] = `
 	delete from publisher 
-	where nation = 'PRC'`
+	where nation = 'PRC';`
 
 	queries[19] = `delete from customer 
-	where name='Xiaohong' AND rank=1`
+	where name='J. Stephenson' AND rank=3;`
 
 	queries[20] = `
 	delete from customer 
-	where rank = 1`
+	where rank = 1;`
 
 	queries[21] = `
-	create database db`
+	create database test;`
 
 	queries[22] = `
-	use db`
+	use test;`
 
 	queries[23] = `
-	create table publisher1 (id int key, name char(100), nation char(3))
+	create table publisher (id int key, name char(100), nation char(3))
 	horizontal fragmentation (
 		(id < 104000 AND nation='PRC') on site main,
 		(id < 104000 AND nation='USA') on site segment1,
 		(id >= 104000 AND nation='PRC') on site segment2,
 		(id >= 104000 AND nation='USA') on site segment3
-	)`
+	);`
 
 	queries[24] = `
 	create table book (id int key, title char(100), authors char(200), publisher_id int, copies int)
@@ -170,14 +171,14 @@ func main() {
 		(id < 205000) on site main,
 		(id >= 205000 AND id < 210000) on site segment1,
 		(id >= 210000) on site segment2
-	)`
+	);`
 
 	queries[25] = `
 	create table customer (id int key, name char (25), rank int)
 	vertical fragmentation (
 		(id, name) on site main,
 		(id, rank) on site segment1
-	)`
+	);`
 
 	queries[26] = `
 	create table orders (customer_id int, book_id int, quantity int)
@@ -186,7 +187,7 @@ func main() {
 		(customer_id < 307000 and book_id >= 215000) on site segment1,
 		(customer_id >= 307000 and book_id < 215000) on site segment2,
 		(customer_id >= 307000 and book_id >= 215000) on site segment3
-	)`
+	);`
 
 	queries[27] = `
 	select book.title, book.copies, publisher.name, publisher.nation 
@@ -204,31 +205,36 @@ func main() {
 	and orders.customer_id >= 307000 and orders.book_id < 215000;`
 
 	queries[29] = `
-	show meta`
+	show meta;`
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		text, _ := reader.ReadString('\n')
+		fmt.Print(">>>")
+		text, _ := reader.ReadString(';')
 		text = text[:len(text)-1]
+		text = strings.Trim(text, " \n")
+
 		if text == "q" {
 			break
 		}
+
+		// read a number or string
 		id, err := strconv.Atoi(text)
-		if err != nil {
-			fmt.Println(err)
-			continue
+		if err == nil {
+			if id < 0 || id > 30 {
+				fmt.Println("id should be in the range[0,20]")
+				continue
+			}
+			text = queries[id]
 		}
-		if id < 0 || id > 30 {
-			fmt.Println("id should be in the range[0,20]")
-			continue
-		}
+
 		start := time.Now()
-		r, err := c.SendSql(ctx, &pb.SqlRequest{SqlStr: queries[id]})
+		r, err := c.SendSql(ctx, &pb.SqlRequest{SqlStr: text})
 		elapsed := time.Since(start)
 		if err != nil {
 			log.Fatal("failed to parse: ", err)
 		}
-		fmt.Println(r.Rc)
+		fmt.Println("row number: ", r.Rc)
 		fmt.Println(r.Data)
 		fmt.Println("total run time: ", elapsed)
 	}
