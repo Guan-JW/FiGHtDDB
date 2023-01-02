@@ -159,7 +159,7 @@ func DropTable(tableName string) {
 
 	stmt, _ := client.Prepare(sqlStr) //err
 	defer stmt.Close()
-	res, _ := stmt.Exec()             //err
+	res, _ := stmt.Exec() //err
 	println(res)
 
 	// println(res)
@@ -183,7 +183,7 @@ func CleanTmpTable(node parser.PlanTreeNode) {
 
 		stmt, _ := client.Prepare(sqlStr) //err
 		defer stmt.Close()
-		res, _ := stmt.Exec()             //err
+		res, _ := stmt.Exec() //err
 		println(res)
 
 		// println(res)
@@ -582,7 +582,7 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 	client, err := sql.Open("postgres", connStr)
 	fmt.Println("join client:", err)
 	defer client.Close()
-	
+
 	var sqlStr string
 	leftTableName := tree.Nodes[node.Left].TmpTable
 	rightTableName := tree.Nodes[node.Right].TmpTable
@@ -1118,12 +1118,12 @@ func CreateTable(tree *parser.PlanTree) {
 
 func GetSites(tree *parser.PlanTree) string {
 	maps := make(map[string]int, 0)
-	for i := 0; i < int(tree.NodeNum); i++ {
+	for i := 1; i <= int(tree.NodeNum); i++ {
 		maps[tree.Nodes[i].Locate] = 1
 	}
 
 	ans := ""
-	for k := range(maps) {
+	for k := range maps {
 		if k != "" {
 			ans += k + ","
 		}
