@@ -107,6 +107,14 @@ func CreateMetaNode() PlanTreeNode {
 	return node
 }
 
+func CreateDropNode(TableName string, siteName string) PlanTreeNode {
+	node := InitialPlanTreeNode()
+	node.NodeType = 12
+	node.TmpTable = TableName
+	node.Locate = siteName
+	return node
+}
+
 // ResetColsForWhere reset cols to get a unique colname
 func ResetColsForWhere(strin string) (strout string) {
 	strout = ""
@@ -375,6 +383,9 @@ func f(c rune) bool {
 }
 func f1(c rune) bool {
 	return !(c == '=' || c == '<' || c == '>')
+}
+func f2(c rune) bool {
+	return (c == '=' || c == '<' || c == '>')
 }
 
 func CheckConflictPossibility(table1 string, table2 string, col1 string, col2 string, TmetaMap *map[string]*storage.TableMeta) bool {
@@ -953,7 +964,9 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 		whereString = ""
 		conditions := strings.Split(tmpString, "and")
 		for _, cond := range conditions {
+			fmt.Println(cond)
 			cond = strings.ReplaceAll(cond, " ", "")
+			fmt.Println(cond)
 			operands := strings.FieldsFunc(cond, f)
 			if len(operands) != 2 {
 				continue
@@ -1158,7 +1171,10 @@ func (logicalPlanTree *PlanTree) buildDelete(sel *sqlparser.Delete) {
 		colVal := strings.FieldsFunc(cond, f)
 		op := strings.FieldsFunc(cond, fop)
 		deleteCols = append(deleteCols, colVal[0])
-		deleteVals = append(deleteVals, colVal[1])
+		// TODO: better solution
+		value := strings.Join(colVal[1:], " ")
+		// fmt.Println(value)
+		deleteVals = append(deleteVals, value)
 		deleteComps = append(deleteComps, op[0])
 	}
 	// fmt.Println(deleteCols, deleteComps, deleteVals)
@@ -1191,6 +1207,7 @@ func (logicalPlanTree *PlanTree) buildDelete(sel *sqlparser.Delete) {
 
 			// step3: create table node, select node
 			if fragWhere != "" {
+				// fmt.Println(fragWhere)
 				fragWhere = strings.TrimSuffix(fragWhere, " and ")
 				fragWhere = "where " + fragWhere
 				// add table node
@@ -1523,6 +1540,20 @@ func (logicalPlanTree *PlanTree) buildShowMeta(sel *sqlparser.Show) {
 	logicalPlanTree.Root = logicalPlanTree.AddSingleNode(CreateMetaNode())
 }
 
+func (logicalPlanTree *PlanTree) buildDrop(sel *sqlparser.DDL) {
+	tableName := sqlparser.String(sel.Table)
+	// fmt.Println(tableName)
+
+	sites := storage.GetAllServerNames()
+	// fmt.Println(sites)
+	for i, site := range sites {
+		id := logicalPlanTree.AddSingleNode(CreateDropNode(tableName, site))
+		if i == 0 {
+			logicalPlanTree.Root = id
+		}
+	}
+}
+
 // TODO: support multiple queries at a time, return multiple PlanTrees
 func Parse(sql string, txnID int64) *PlanTree {
 	stmt, err := sqlparser.Parse(sql)
@@ -1548,6 +1579,8 @@ func Parse(sql string, txnID int64) *PlanTree {
 		sel := stmt.(*sqlparser.DDL)
 		if sel.Action == "create" {
 			planTree.buildTable(sel, sql)
+		} else if sel.Action == "drop" {
+			planTree.buildDrop(sel)
 		}
 	case *sqlparser.DBDDL: // create database
 		planTree.buildDatabase(stmt.(*sqlparser.DBDDL))
