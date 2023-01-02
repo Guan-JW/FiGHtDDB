@@ -71,7 +71,7 @@ func main() {
 
 	queries[5] = `
 	insert into customer(id, name, rank) 
-	values(300001, 'Xiaoming', 1);`
+	values(900001, 'Xiaoming', 1);`
 
 	queries[6] = `
 	insert into publisher(id, name, nation) 
@@ -185,7 +185,7 @@ func main() {
 	where rank = 1;`
 
 	queries[25] = `
-	use test;`
+	drop table customer;`
 
 	queries[26] = `
 	select book.title, book.copies, publisher.name, publisher.nation 
@@ -209,8 +209,10 @@ func main() {
 	for {
 		fmt.Print(">>>")
 		text, _ := reader.ReadString(';')
+		// fmt.Println(text)
 		text = text[:len(text)-1]
 		text = strings.Trim(text, " \n")
+		// fmt.Println(text)
 
 		if text == "q" {
 			break
@@ -218,12 +220,14 @@ func main() {
 
 		// read a number or string
 		id, err := strconv.Atoi(text)
+		// fmt.Println(id)
 		if err == nil {
 			if id < 0 || id > 28 {
 				fmt.Println("id should be in the range[0,27]")
 				continue
 			}
 			text = queries[id]
+			// fmt.Println(text)
 		}
 
 		start := time.Now()
