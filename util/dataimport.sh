@@ -42,10 +42,10 @@ DELETEORDERS3="delete from orders where not (customer_id >= 307000 and book_id <
 DELETEORDERS4="delete from orders where not (customer_id >= 307000 and book_id >= 215000);"
 
 function createTable {
-    ssh ddb@${HOST1} "docker exec ${PG1} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
-    ssh ddb@${HOST2} "docker exec ${PG2} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
-    ssh ddb@${HOST3} "docker exec ${PG3} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
-    ssh ddb@${HOST3} "docker exec ${PG4} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\""
+    ssh ddb@${HOST1} "docker exec ${PG1} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\"" >> import.log 2>&1
+    ssh ddb@${HOST2} "docker exec ${PG2} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\"" >> import.log 2>&1
+    ssh ddb@${HOST3} "docker exec ${PG3} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\"" >> import.log 2>&1
+    ssh ddb@${HOST3} "docker exec ${PG4} psql -U postgres -c \"${PUBLISHER}${CUSTOMER}${BOOK}${ORDERS}\"" >> import.log 2>&1
 }
 
 function storeTableMeta {
@@ -62,13 +62,13 @@ function mvfile {
 
 function importDatabase {
     ssh ddb@${HOST1} "docker exec ${PG1} psql -U postgres -c \"${COPYPUBLISHER}${COPYCUSTOMER}${COPYBOOK}${COPYORDERS}
-    ${DELETEPUBLISHER1}${DELETECUSTOMER1}${DELETEBOOK1}${DELETEORDERS1}\"" > import.log 2>&1
+    ${DELETEPUBLISHER1}${DELETECUSTOMER1}${DELETEBOOK1}${DELETEORDERS1}\"" >> import.log 2>&1
     ssh ddb@${HOST2} "docker exec ${PG2} psql -U postgres -c \"${COPYPUBLISHER}${COPYCUSTOMER}${COPYBOOK}${COPYORDERS}
-    ${DELETEPUBLISHER2}${DELETECUSTOMER2}${DELETEBOOK2}${DELETEORDERS2}\"" > import.log 2>&1
+    ${DELETEPUBLISHER2}${DELETECUSTOMER2}${DELETEBOOK2}${DELETEORDERS2}\"" >> import.log 2>&1
     ssh ddb@${HOST3} "docker exec ${PG3} psql -U postgres -c \"${COPYPUBLISHER}${COPYCUSTOMER}${COPYBOOK}${COPYORDERS}
-    ${DELETEPUBLISHER3}${DELETECUSTOMER3}${DELETEBOOK3}${DELETEORDERS3}\"" > import.log 2>&1
+    ${DELETEPUBLISHER3}${DELETECUSTOMER3}${DELETEBOOK3}${DELETEORDERS3}\"" >> import.log 2>&1
     ssh ddb@${HOST3} "docker exec ${PG4} psql -U postgres -c \"${COPYPUBLISHER}${COPYCUSTOMER}${COPYBOOK}${COPYORDERS}
-    ${DELETEPUBLISHER4}${DELETECUSTOMER4}${DELETEBOOK4}${DELETEORDERS4}\"" > import.log 2>&1
+    ${DELETEPUBLISHER4}${DELETECUSTOMER4}${DELETEBOOK4}${DELETEORDERS4}\"" >> import.log 2>&1
 }
 
 function storeTableMeta {
@@ -88,6 +88,7 @@ function outputMeta {
 }
 
 start_time=$(date +%s)
+rm -f import.log
 createTable
 mvfile
 importDatabase
