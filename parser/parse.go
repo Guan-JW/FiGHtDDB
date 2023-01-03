@@ -493,7 +493,7 @@ func ValueConflict(Cond1 *storage.Condition, Cond2 *storage.Condition) bool {
 }
 
 // Create sub-tree for one list
-func (logicalPlanTree *PlanTree) CreateSubTree(FragIdMap *map[string]map[string]int64, patterns *[]string, clientSite string) int64 {
+func (logicalPlanTree *PlanTree) CreateSubTree(FragIdMap *map[string]map[string]int64, patterns *[]string, clientSite string, JoinColMap *map[string][]string) int64 {
 	root := int64(-1)
 	// TODO: deal with more than 4 tables efficiently
 	// build a balanced sub-tree
@@ -533,8 +533,76 @@ func (logicalPlanTree *PlanTree) CreateSubTree(FragIdMap *map[string]map[string]
 		}
 		root = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), JoinIDs[0], JoinIDs[1])
 	} else {
+		fmt.Println("JoinColMap = ", JoinColMap)
+		// init marker
+		marker := make([]int, len(*patterns)) // [0,0,0,0]
+		// fmt.Println("marker = ", marker)
+
+		// find the first pair to join
 		leftID := int64(-1)
+		firstFind := false
+		for i := 0; i < len(*patterns)-1; i += 1 {
+			ptn1 := (*patterns)[i]
+			tmpID := int64(-1)
+			leftTableName := ""
+
+			if strings.HasPrefix(ptn1, "(") {
+				tmpID = (*FragIdMap)[ptn1][clientSite]
+				leftTableName = strings.Split(strings.TrimPrefix(strings.Split(ptn1, "|")[0], "("), ".")[0]
+			} else {
+				ts := strings.Split(ptn1, ".") // [customer, main]
+				tmpID = (*FragIdMap)[ts[0]][ts[1]]
+				leftTableName = ts[0]
+			}
+			fmt.Println("leftTableName = ", leftTableName)
+
+			leftID = tmpID
+			rightTableList := (*JoinColMap)[leftTableName]
+
+			for j := i + 1; j < len(*patterns); j += 1 {
+				ptn2 := (*patterns)[j]
+				rightTmpID := int64(-1)
+				rightTableName := ""
+
+				fmt.Println(ptn1, ptn2)
+				if strings.HasPrefix(ptn2, "(") {
+					rightTmpID = (*FragIdMap)[ptn2][clientSite]
+					rightTableName = strings.Split(strings.TrimPrefix(strings.Split(ptn2, "|")[0], "("), ".")[0]
+				} else {
+					ts := strings.Split(ptn2, ".") // [customer, main]
+					rightTmpID = (*FragIdMap)[ts[0]][ts[1]]
+					rightTableName = ts[0]
+				}
+				fmt.Println("rightTableName = ", rightTableName)
+
+				// check if equal join condition exist
+				for _, rightTable := range rightTableList {
+					if rightTable == rightTableName {
+						marker[i] = 1
+						marker[j] = 1
+						firstFind = true
+						// create join node
+						rightID := rightTmpID
+						leftID = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
+						break
+					}
+				}
+				if firstFind {
+					break
+				}
+			}
+			if firstFind {
+				break
+			}
+		}
+
+		fmt.Println("marker = ", marker)
+
+		// leftID := int64(-1)
 		for i, ptn := range *patterns {
+			if marker[i] > 0 {
+				continue
+			}
 			tmpID := int64(-1)
 			if strings.HasPrefix(ptn, "(") {
 				tmpID = (*FragIdMap)[ptn][clientSite]
@@ -542,12 +610,19 @@ func (logicalPlanTree *PlanTree) CreateSubTree(FragIdMap *map[string]map[string]
 				ts := strings.Split(ptn, ".") // [customer, main]
 				tmpID = (*FragIdMap)[ts[0]][ts[1]]
 			}
-			if i == 0 {
-				leftID = tmpID
-			} else {
+
+			if firstFind {
 				rightID := tmpID
 				leftID = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
+			} else if i == 0 {
+				leftID = tmpID
 			}
+			// if i == 0 {
+			// 	leftID = tmpID
+			// } else {
+			// 	rightID := tmpID
+			// 	leftID = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
+			// }
 		}
 		root = leftID
 	}
@@ -556,8 +631,9 @@ func (logicalPlanTree *PlanTree) CreateSubTree(FragIdMap *map[string]map[string]
 }
 
 // Create sub-Tree for one Fraglist
-func (logicalPlanTree *PlanTree) FindAndCreateReuseNode(JoinFragLists *[]string, FragIdMap *map[string]map[string]int64, size int, clientSite string) int64 {
+func (logicalPlanTree *PlanTree) FindAndCreateReuseNode(JoinFragLists *[]string, FragIdMap *map[string]map[string]int64, size int, clientSite string, JoinColMap *map[string][]string) int64 {
 	root := int64(-1)
+	// fmt.Println(*JoinFragLists)
 	for r, list := range *JoinFragLists { // list = (publisher.main|publisher.segment2)^(book.main|book.segment1|book.segment2)^orders.segment2^customer.main
 		patterns := strings.Split(list, "^")
 		for _, ptn := range patterns { // ptn = (publisher.main|publisher.segment2)
@@ -630,9 +706,9 @@ func (logicalPlanTree *PlanTree) FindAndCreateReuseNode(JoinFragLists *[]string,
 		// }
 		// step4: create sub-tree for current list
 		if r == 0 {
-			root = logicalPlanTree.CreateSubTree(FragIdMap, &patterns, clientSite)
+			root = logicalPlanTree.CreateSubTree(FragIdMap, &patterns, clientSite, JoinColMap)
 		} else {
-			newRoot := logicalPlanTree.CreateSubTree(FragIdMap, &patterns, clientSite)
+			newRoot := logicalPlanTree.CreateSubTree(FragIdMap, &patterns, clientSite, JoinColMap)
 			// step5: create union node on top of list pairs
 			root = logicalPlanTree.AddParentNode(CreateUnionNode(logicalPlanTree.GetTmpTableName()), root, newRoot)
 		}
@@ -642,7 +718,7 @@ func (logicalPlanTree *PlanTree) FindAndCreateReuseNode(JoinFragLists *[]string,
 	return root
 }
 
-func (logicalPlanTree *PlanTree) CollectPatterns(JoinTableLists *[][]string, JoinFragLists *[][]string, FragIdMap *map[string]map[string]int64) {
+func (logicalPlanTree *PlanTree) CollectPatterns(JoinTableLists *[][]string, JoinFragLists *[][]string, FragIdMap *map[string]map[string]int64, JoinColMap *map[string][]string) {
 
 	// TODO: get clientSite from meta
 	clientSite := "main"
@@ -703,9 +779,9 @@ func (logicalPlanTree *PlanTree) CollectPatterns(JoinTableLists *[][]string, Joi
 			// fmt.Println("(*JoinFragLists)[", i, "] = ", (*JoinFragLists)[i])
 		}
 		if i == 0 {
-			root = logicalPlanTree.FindAndCreateReuseNode(&(*JoinFragLists)[i], FragIdMap, size, clientSite)
+			root = logicalPlanTree.FindAndCreateReuseNode(&(*JoinFragLists)[i], FragIdMap, size, clientSite, JoinColMap)
 		} else {
-			newRoot := logicalPlanTree.FindAndCreateReuseNode(&(*JoinFragLists)[i], FragIdMap, size, clientSite)
+			newRoot := logicalPlanTree.FindAndCreateReuseNode(&(*JoinFragLists)[i], FragIdMap, size, clientSite, JoinColMap)
 			root = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), root, newRoot)
 		}
 	}
@@ -746,18 +822,36 @@ func (logicalPlanTree *PlanTree) GetJoinUnionOrders(sel *sqlparser.Select, JoinC
 	// }
 	// os.Exit(0)
 
-	var JoinTableLists [][]string // [[customer, orders, book, publisher]]
-	var JoinFragLists [][]string  // [[[customer.main^orders.segment3, ...]]
+	var JoinTableLists [][]string           // [[customer, orders, book, publisher]]
+	var JoinFragLists [][]string            // [[[customer.main^orders.segment3, ...]]
+	JoinColMap := make(map[string][]string) // customer.id : orders.customer_id
 	for _, cond := range JoinConditions {
 		// e.g. 1. customer.id = orders.customer_id
 		// e.g. 2. book.id = orders.book_id
-		operands := strings.FieldsFunc(cond, f)      // get left and right operands, e.g. [customer.id, orders.customer_id]
+		operands := strings.FieldsFunc(cond, f) // get left and right operands, e.g. [customer.id, orders.customer_id]
+		if len(operands) > 2 {
+			operands[1] = strings.Join(operands[1:], " ")
+			operands = operands[:2]
+		}
 		tableCol1 := strings.Split(operands[0], ".") // [customer, id]
 		tableCol2 := strings.Split(operands[1], ".") // [orders, customer_id]
 		table1 := tableCol1[0]                       // customer
 		col1 := tableCol1[1]                         // id
 		table2 := tableCol2[0]                       // orders
 		col2 := tableCol2[1]                         // customer_id
+		// save join condition mapping
+		if _, ok := JoinColMap[table1]; !ok {
+			JoinColMap[table1] = []string{table2}
+		} else {
+			JoinColMap[table1] = append(JoinColMap[table1], table2)
+		}
+
+		if _, ok := JoinColMap[table2]; !ok {
+			JoinColMap[table2] = []string{table1}
+		} else {
+			JoinColMap[table2] = append(JoinColMap[table2], table1)
+		}
+		// fmt.Println("JoinColMap = ", JoinColMap)
 
 		if len(JoinTableLists) == 0 {
 			JoinTableLists = append(JoinTableLists, []string{table1, table2})     // [[customer, orders]]
@@ -932,8 +1026,9 @@ func (logicalPlanTree *PlanTree) GetJoinUnionOrders(sel *sqlparser.Select, JoinC
 	}
 	// fmt.Println(JoinTableLists)
 	// fmt.Println(JoinFragLists)
+	fmt.Println("JoinColMap = ", JoinColMap)
 
-	logicalPlanTree.CollectPatterns(&JoinTableLists, &JoinFragLists, &FragIdMap)
+	logicalPlanTree.CollectPatterns(&JoinTableLists, &JoinFragLists, &FragIdMap, &JoinColMap)
 
 	// os.Exit(0)
 }
@@ -968,6 +1063,10 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 			cond = strings.ReplaceAll(cond, " ", "")
 			fmt.Println(cond)
 			operands := strings.FieldsFunc(cond, f)
+			if len(operands) > 2 {
+				operands[1] = strings.Join(operands[1:], " ")
+				operands = operands[:2]
+			}
 			if len(operands) != 2 {
 				continue
 			}
@@ -1003,7 +1102,7 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 
 	projectionString := sqlparser.String(sel.SelectExprs)
 	// fmt.Println("projection string = ", projectionString)
-
+	// fmt.Println(len(JoinConditions), len(sel.From))
 	if len(sel.From) == 1 {
 		for _, table := range sel.From {
 			tableName := sqlparser.String(table)
@@ -1021,7 +1120,52 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 				}
 			}
 		}
+		// } else if len(JoinConditions) > 0 && len(JoinConditions) < len(sel.From) {
+		// 	// for _, table := range sel.From {
+		// 	// 	tableName := sqlparser.String(table)
+		// 	// 	logicalPlanTree.AddTableNode(CreateTableNode(tableName))
+		// 	// }
+		// 	tableID := make(map[string]int64, 0)
+		// 	for i, cond := range JoinConditions {
+		// 		operands := strings.FieldsFunc(cond, f)
+		// 		if len(operands) > 2 {
+		// 			operands[1] = strings.Join(operands[1:], " ")
+		// 			operands = operands[:2]
+		// 		}
+		// 		fmt.Println(operands)
+		// 		leftTableName := strings.Split(operands[0], ".")[0]
+		// 		rightTableName := strings.Split(operands[1], ".")[0]
+		// 		fmt.Println("left = ", leftTableName, "; right=", rightTableName)
+
+		// 		leftNodeID := int64(0)
+		// 		rightNodeID := int64(0)
+		// 		if id, ok := tableID[leftTableName]; ok {
+		// 			leftNodeID = id
+		// 		} else {
+		// 			leftNodeID = logicalPlanTree.AddSingleNode(CreateTableNode(leftTableName))
+		// 			tableID[leftTableName] = leftNodeID
+		// 		}
+
+		// 		if id, ok := tableID[rightTableName]; ok {
+		// 			rightNodeID = id
+		// 		} else {
+		// 			rightNodeID = logicalPlanTree.AddSingleNode(CreateTableNode(rightTableName))
+		// 			tableID[rightTableName] = rightNodeID
+		// 		}
+
+		// 		if i == 0 {
+		// 			// logicalPlanTree.AddTableNode(CreateTableNode(leftTableName))
+		// 			// logicalPlanTree.AddTableNode(CreateTableNode(rightTableName))
+		// 			// tableID[leftTableName] =
+		// 			logicalPlanTree.Root = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftNodeID, rightNodeID)
+		// 		} else {
+		// 			joinID := logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftNodeID, rightNodeID)
+		// 			logicalPlanTree.Root = logicalPlanTree.AddParentNode(CreateUnionNode(logicalPlanTree.GetTmpTableName()), logicalPlanTree.Root, joinID)
+		// 		}
+		// 	}
+		// }
 	} else {
+		// fmt.Println(JoinConditions)
 		logicalPlanTree.GetJoinUnionOrders(sel, JoinConditions, projectionString, whereString)
 	}
 
@@ -1031,6 +1175,16 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 	}
 	// add projection node
 	logicalPlanTree.AddFilternNode(CreateProjectionNode(logicalPlanTree.GetTmpTableName(), projectionString))
+
+	// if len(JoinConditions) < len(sel.From) {
+	// 	ReplaceMap := make(map[int64]int64, 0)
+	// 	logicalPlanTree.DFSSplitTableNode(logicalPlanTree.Root, -1, &ReplaceMap, projectionString, whereString)
+	// 	// for _, node := range logicalPlanTree.Nodes {
+	// 	// 	if node.NodeType == 1 {
+	// 	// 		logicalPlanTree.splitTableNode(node, projectionString, whereString)
+	// 	// 	}
+	// 	// }
+	// }
 }
 
 // handle insertion into only one table
@@ -1454,6 +1608,10 @@ func (logicalPlanTree *PlanTree) buildTable(sel *sqlparser.DDL, sql string) {
 
 				for _, condition := range strings.Split(cond, "and") {
 					operands := strings.FieldsFunc(condition, f)
+					if len(operands) > 2 {
+						operands[1] = strings.Join(operands[1:], " ")
+						operands = operands[:2]
+					}
 					ops := strings.FieldsFunc(condition, f1)
 
 					var Cond storage.Condition

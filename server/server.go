@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	pb "github.com/FiGHtDDB/comm"
@@ -28,13 +29,17 @@ func (s *Server) SendSql(ctx context.Context, in *pb.SqlRequest) (*pb.SqlResult,
 	planTree := parser.Parse(in.SqlStr, txnId)
 	planTree.Analyze()
 	planTree = optimizer.Optimize(planTree)
-	planTree.DrawPlanTree(0, "")
+	// planTree.DrawPlanTree(0, "")
+	planTree.DrawPlanTreeTmpTable(0, "")
 	res, resLen := executor.Execute(planTree)
 	res += executor.GetSites(planTree)
 
 	fmt.Println("node number: ", planTree.NodeNum)
 	fmt.Println(resLen)
 	fmt.Println(res)
+	if planTree.Nodes[planTree.Root].NodeType == 6 {
+		resLen = strings.Count(in.SqlStr, "), ") + 1
+	}
 	return &pb.SqlResult{Data: res, Rc: int32(resLen)}, nil
 }
 

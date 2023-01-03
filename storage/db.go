@@ -185,7 +185,9 @@ func (db *Db) ExecSelect(sqlStr string) (string, int) {
 		resStr = resStr[:len(resStr)-1]
 		resStr += "),"
 	}
-	resStr = resStr[:len(resStr)-1]
+	if len(resStr) != 0 {
+		resStr = resStr[:len(resStr)-1]
+	}
 
 	return resStr, 0
 }

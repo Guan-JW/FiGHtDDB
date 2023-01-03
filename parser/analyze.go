@@ -64,6 +64,12 @@ func SplitHorizontalCond(condition string, TableName string) ([]storage.Conditio
 		if len(operands) < 2 {
 			continue
 		}
+
+		if len(operands) > 2 {
+			operands[1] = strings.Join(operands[1:], " ")
+			operands = operands[:2]
+		}
+
 		if !CheckValue(operands[1]) { // join condition
 			left_operand := strings.Split(operands[0], ".")
 			right_operand := strings.Split(operands[1], ".")
@@ -84,6 +90,12 @@ func SplitHorizontalCond(condition string, TableName string) ([]storage.Conditio
 		if len(operands) < 2 {
 			continue
 		}
+
+		if len(operands) > 2 {
+			operands[1] = strings.Join(operands[1:], " ")
+			operands = operands[:2]
+		}
+
 		if !CheckValue(operands[1]) {
 			continue
 		}

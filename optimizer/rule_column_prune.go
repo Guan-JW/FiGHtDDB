@@ -52,6 +52,10 @@ func GetWhereCols(whereClause string, parentCols string) map[string]void {
 	// whereClause = strings.ReplaceAll(whereClause, " ", "")
 	where := strings.TrimPrefix(whereClause, "where")
 	operands := strings.FieldsFunc(where, f)
+	if len(operands) > 2 {
+		operands[1] = strings.Join(operands[1:], " ")
+		operands = operands[:2]
+	}
 	// fmt.Println(operands)
 	// only handle simple where clause
 	if len(operands) == 2 {
@@ -307,6 +311,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 							colsMap[tableCol[1]] = 0
 							node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[1])
 						}
+						node.ExecStmtWhere = strings.ReplaceAll(node.ExecStmtWhere, rcol, rightTmpTable+"."+tableCol[1])
 					} else {
 						if val, ok := colsMap[tableCol[0]]; ok {
 							newVal := val + 1
@@ -317,6 +322,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 							colsMap[tableCol[0]] = 0
 							node.ExecStmtCols = strings.ReplaceAll(node.ExecStmtCols, rcol, rightTmpTable+"."+tableCol[0])
 						}
+						node.ExecStmtWhere = strings.ReplaceAll(node.ExecStmtWhere, rcol, rightTmpTable+"."+tableCol[0])
 					}
 					rightEqualCol = rcol
 					break
@@ -355,6 +361,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 							colsMap[tableCol[1]] = 0
 							node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[1], -1)
 						}
+						node.ExecStmtWhere = strings.Replace(node.ExecStmtWhere, lcol, leftTmpTable+"."+tableCol[1], -1)
 					} else {
 						if val, ok := colsMap[tableCol[0]]; ok {
 							newVal := val + 1
@@ -365,6 +372,7 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 							colsMap[tableCol[0]] = 0
 							node.ExecStmtCols = strings.Replace(node.ExecStmtCols, lcol, leftTmpTable+"."+tableCol[0], -1)
 						}
+						node.ExecStmtWhere = strings.Replace(node.ExecStmtWhere, lcol, leftTmpTable+"."+tableCol[0], -1)
 					}
 					// fmt.Println("node.ExecStmtWhere (after) = ", node.ExecStmtWhere)
 					break
@@ -502,6 +510,10 @@ func prune_columns(pt *parser.PlanTree, beginNode int64, parentCols string, pare
 			// fmt.Println("conditions = ", conditions)
 			for i, cond := range conditions {
 				operands := strings.FieldsFunc(cond, f1)
+				if len(operands) > 2 {
+					operands[1] = strings.Join(operands[1:], " ")
+					operands = operands[:2]
+				}
 				op := strings.FieldsFunc(cond, f2)
 				for j, oprd := range operands {
 					if !parser.CheckValue(oprd) { // oprd is an attribute

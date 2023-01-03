@@ -639,9 +639,9 @@ func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 
 		}
 
-		// fmt.Println("join:", sqlStr)
-		stmt, _ := client.Prepare(sqlStr) //err
-		// fmt.Println("join prepare:", err)
+		fmt.Println("join:", sqlStr)
+		stmt, err := client.Prepare(sqlStr) //err
+		fmt.Println("join prepare:", err)
 		defer stmt.Close()
 		res, _ := stmt.Exec() //err
 		// fmt.Println("join exec:", err)
@@ -887,58 +887,100 @@ func executeOperator(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuple
 }
 
 func printResult(tree *parser.PlanTree) []string {
-	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
-	client, _ := sql.Open("postgres", connStr)
-	defer client.Close()
-
 	result := make([]string, 0)
-	// var result string
-	node := tree.Nodes[tree.Root]
+	if tree.Nodes[tree.Root].Locate == "main" {
+		connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
+		client, _ := sql.Open("postgres", connStr)
+		defer client.Close()
 
-	query := "select * from " + node.TmpTable
-	println("PrintResult:", query)
-	rows, _ := client.Query(query)
-	// fmt.Println(rows)
-	colTypes, _ := rows.ColumnTypes()
+		// var result string
+		node := tree.Nodes[tree.Root]
 
-	types := make([]reflect.Type, len(colTypes))
-	for i, tp := range colTypes {
-		// ScanType
-		scanType := tp.ScanType()
-		types[i] = scanType
-	}
-	// fmt.Println(" ")
-	values := make([]interface{}, len(colTypes))
-	for i := range values {
-		values[i] = reflect.New(types[i]).Interface()
-	}
-	i := 0
-	for rows.Next() {
-		var res string
-		// todo: 只插入前100条，之后需要修改
-		// if i > 10 {
-		// 	break
-		// }
-		// todo: 只插入前100条，之后需要修改
-		_ = rows.Scan(values...)
+		query := "select * from " + node.TmpTable
+		println("PrintResult:", query)
+		rows, _ := client.Query(query)
+		// fmt.Println(rows)
+		colTypes, _ := rows.ColumnTypes()
 
-		// fmt.Print("|")
-		res += "|"
-		for j := range values {
-
-			value := reflect.ValueOf(values[j]).Elem().Interface()
-			// fmt.Print(Strval(value))
-			res += Strval(value)
-			// fmt.Print("|")
-			res += "|"
+		types := make([]reflect.Type, len(colTypes))
+		for i, tp := range colTypes {
+			// ScanType
+			scanType := tp.ScanType()
+			types[i] = scanType
 		}
 		// fmt.Println(" ")
-		res += " "
-		// result += res + "\n"
-		result = append(result, res)
-		i++
+		values := make([]interface{}, len(colTypes))
+		for i := range values {
+			values[i] = reflect.New(types[i]).Interface()
+		}
+		i := 0
+		for rows.Next() {
+			var res string
+			// todo: 只插入前100条，之后需要修改
+			// if i > 10 {
+			// 	break
+			// }
+			// todo: 只插入前100条，之后需要修改
+			_ = rows.Scan(values...)
+
+			// fmt.Print("|")
+			res += "|"
+			for j := range values {
+
+				value := reflect.ValueOf(values[j]).Elem().Interface()
+				// fmt.Print(Strval(value))
+				res += Strval(value)
+				// fmt.Print("|")
+				res += "|"
+			}
+			// fmt.Println(" ")
+			res += " "
+			// result += res + "\n"
+			result = append(result, res)
+			i++
+		}
+		CleanTmpTable(node)
+	} else {
+		address := storage.GetServerAddress(tree.Nodes[tree.Root].Locate)
+		node := tree.Nodes[tree.Root]
+
+		query := "select * from " + node.TmpTable
+
+		values := storage.ExecRemoteSelect(query, address)
+		rows := strings.Split(values, "),")
+		i := 0
+		for _, row_val := range rows {
+			var res string
+			// todo: 只插入前100条，之后需要修改
+			// if i > 10 {
+			// 	break
+			// }
+			// todo: 只插入前100条，之后需要修改
+
+			// fmt.Print("|")
+			res += "|"
+			val := strings.Split(row_val, ",")
+			for ind, j := range val {
+				if ind == 0 {
+					j = j[1:]
+				} else if ind == len(val)-1 {
+					j = j[:len(j)-1]
+				}
+				// value := reflect.ValueOf(values[j]).Elem().Interface()
+				// fmt.Print(Strval(value))
+				res += Strval(j)
+				// fmt.Print("|")
+				res += "|"
+			}
+			// fmt.Println(" ")
+			res += " "
+			// result += res + "\n"
+			result = append(result, res)
+			i++
+		}
+
 	}
-	CleanTmpTable(node)
+
 	return result
 }
 func printTree(node parser.PlanTreeNode, tree *parser.PlanTree, num int32) {
@@ -1013,7 +1055,7 @@ func ExecuteInsert(tree *parser.PlanTree) int {
 	return insertNum
 }
 func ExecuteDelete(tree *parser.PlanTree) int {
-	delNum := 0
+	delNum := [4]int{0, 0, 0, 0}
 	nodeNum := int(tree.NodeNum)
 	for i := 1; i <= nodeNum; i++ {
 		node := tree.Nodes[i]
@@ -1038,18 +1080,40 @@ func ExecuteDelete(tree *parser.PlanTree) int {
 			// fmt.Println("delete prepare", err)
 			res2, _ := stmt2.Exec()
 			res2num, _ := res2.RowsAffected()
-			delNum += int(res2num)
+			delNum[0] += int(res2num)
 			// fmt.Println("delete", res2, err)
 		} else {
 			address := storage.GetServerAddress(node.Locate)
 			fmt.Println(address)
 			res2 := storage.ExecRemoteSql(delSql, address)
-			delNum += res2
+			switch {
+			case node.Locate == "segment1":
+				delNum[1] += res2
+				break
+			case node.Locate == "segment2":
+				delNum[2] += res2
+				break
+			case node.Locate == "segment3":
+				delNum[3] += res2
+				break
+			}
+			// delNum += res2
 			// fmt.Println("remote delete", res2)
 		}
 
 	}
-	return delNum
+	ans := 0
+	if tree.Nodes[tree.Root].TmpTable == "customer" {
+		ans = delNum[0]
+		for i := 1; i < len(delNum); i++ {
+			if delNum[i] > ans {
+				ans = delNum[i]
+			}
+		}
+	} else {
+		ans = delNum[0] + delNum[1] + delNum[2] + delNum[3]
+	}
+	return ans
 }
 func ExecuteCreateDB(tree *parser.PlanTree) {
 	nodeNum := int(tree.NodeNum)
@@ -1067,31 +1131,6 @@ func ExecuteCreateDB(tree *parser.PlanTree) {
 			defer client.Close()
 			// fmt.Println("insert err", err)
 			stmt2, _ := client.Prepare(createSql)
-			// fmt.Println("insert prepare", err)
-			res2, _ := stmt2.Exec()
-			fmt.Println("insert", res2)
-		}
-	}
-}
-func UseDB(tree *parser.PlanTree) {
-	nodeNum := int(tree.NodeNum)
-	for i := 1; i <= nodeNum; i++ {
-		node := tree.Nodes[i]
-
-		useSql := "\\c  " + node.TmpTable + ""
-		fmt.Println(useSql)
-		if node.Locate != "main" {
-			fmt.Println("not main")
-			address := storage.GetServerAddress(node.Locate)
-			res2 := storage.ExecRemoteSql(useSql, address)
-			fmt.Println("remote insert", res2)
-		} else {
-			fmt.Println(" main")
-			connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
-			client, _ := sql.Open("postgres", connStr)
-			defer client.Close()
-			// fmt.Println("insert err", err)
-			stmt2, _ := client.Prepare(useSql)
 			// fmt.Println("insert prepare", err)
 			res2, _ := stmt2.Exec()
 			fmt.Println("insert", res2)
@@ -1202,12 +1241,6 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		ExecuteCreateDB(tree)
 		fmt.Println("create db success")
 		resultStr = "db success\n"
-		resultLen = 0
-	} else if tree.Nodes[tree.Root].NodeType == 9 {
-		// tree.Print()
-		UseDB(tree)
-		fmt.Println("change db success")
-		resultStr = "use success"
 		resultLen = 0
 	} else if tree.Nodes[tree.Root].NodeType == 10 {
 		// tree.Print()

@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -214,6 +215,7 @@ func GetTid() int64 {
 }
 
 func GetTableMeta(tableName string) (*TableMeta, error) {
+	tableName = strings.ToLower(tableName)
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   configs.EtcdEndpoints,
 		DialTimeout: 5 * time.Second,

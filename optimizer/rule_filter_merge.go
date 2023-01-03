@@ -248,6 +248,10 @@ func merge_filters(pt *parser.PlanTree, beginNode int64, parentID int64) {
 					for i, cond := range conditions {
 						ChildTmpTable := pt.Nodes[pt.Nodes[filter.Parent].Left].TmpTable
 						operands := strings.FieldsFunc(cond, f1)
+						if len(operands) > 2 {
+							operands[1] = strings.Join(operands[1:], " ")
+							operands = operands[:2]
+						}
 						op := strings.FieldsFunc(cond, f2)
 						isLeft := -1
 						for j, oprd := range operands {
