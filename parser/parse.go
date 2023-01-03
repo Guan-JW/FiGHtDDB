@@ -498,40 +498,116 @@ func (logicalPlanTree *PlanTree) CreateSubTree(FragIdMap *map[string]map[string]
 	// TODO: deal with more than 4 tables efficiently
 	// build a balanced sub-tree
 	// TODO: join reorder based on cost
-	if len(*patterns) == 4 {
+	// fmt.Println()
+	// fmt.Println("len = ", len(*JoinColMap))
+	if len(*patterns) == 4 && len(*JoinColMap) >= 4 {
 		// JoinLeftID := int64(-1)
 		// JoinRightID := int64(-1)
 		JoinIDs := []int64{0, 0}
-		i := 0
-		for {
-			ptn := (*patterns)[i] // ptn = (publisher.main|publisher.segment2)
+		marker := make([]int, 4)
+		leftTableName := ""
+		rightTableName := ""
 
-			leftID := int64(-1)
-			if strings.HasPrefix(ptn, "(") {
-				leftID = (*FragIdMap)[ptn][clientSite]
-			} else {
-				ts := strings.Split(ptn, ".") // [customer, main]
-				leftID = (*FragIdMap)[ts[0]][ts[1]]
-			}
+		// get left table name and left id
+		marker[0] = 1
+		ptn := (*patterns)[0] // ptn = (publisher.main|publisher.segment2)
+		leftID := int64(-1)
+		if strings.HasPrefix(ptn, "(") {
+			leftID = (*FragIdMap)[ptn][clientSite]
+			leftTableName = strings.Split(strings.TrimPrefix(strings.Split(ptn, "|")[0], "("), ".")[0]
+		} else {
+			ts := strings.Split(ptn, ".") // [customer, main]
+			leftID = (*FragIdMap)[ts[0]][ts[1]]
+			leftTableName = ts[0]
+		}
+		// fmt.Println("leftTableName = ", leftTableName)
+		rightID := int64(-1)
+		rightTableList := (*JoinColMap)[leftTableName]
 
-			ptn = (*patterns)[i+1] // ptn = (book.main|book.segment1|book.segment2)
-			rightID := int64(-1)
+		find := false
+		for j := 1; j < 4; j += 1 {
+			ptn = (*patterns)[j]
 			if strings.HasPrefix(ptn, "(") {
 				rightID = (*FragIdMap)[ptn][clientSite]
+				rightTableName = strings.Split(strings.TrimPrefix(strings.Split(ptn, "|")[0], "("), ".")[0]
 			} else {
 				ts := strings.Split(ptn, ".") // [customer, main]
 				rightID = (*FragIdMap)[ts[0]][ts[1]]
+				rightTableName = ts[0]
 			}
 
-			// create join node!!!!
-			JoinIDs[int(i/2)] = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
-
-			i += 2
-			if i >= len(*patterns) {
+			// check if equal join condition exist
+			for _, rightTable := range rightTableList {
+				if rightTable == rightTableName {
+					marker[j] = 1
+					find = true
+					// create 1st join node
+					JoinIDs[0] = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
+					break
+				}
+			}
+			if find {
 				break
 			}
 		}
+		// fmt.Println("rightTableName = ", rightTableName)
+
+		leftID = int64(-1)
+		for i := 0; i < 4; i += 1 {
+			if marker[i] > 0 {
+				continue
+			}
+			ptn = (*patterns)[i]
+			if leftID < 0 {
+				if strings.HasPrefix(ptn, "(") {
+					leftID = (*FragIdMap)[ptn][clientSite]
+				} else {
+					ts := strings.Split(ptn, ".") // [customer, main]
+					leftID = (*FragIdMap)[ts[0]][ts[1]]
+				}
+			} else {
+				if strings.HasPrefix(ptn, "(") {
+					rightID = (*FragIdMap)[ptn][clientSite]
+				} else {
+					ts := strings.Split(ptn, ".") // [customer, main]
+					rightID = (*FragIdMap)[ts[0]][ts[1]]
+				}
+				JoinIDs[1] = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
+				break
+			}
+		}
+
+		// i := 0
+		// for {
+		// 	ptn := (*patterns)[i] // ptn = (publisher.main|publisher.segment2)
+
+		// 	leftID := int64(-1)
+		// 	if strings.HasPrefix(ptn, "(") {
+		// 		leftID = (*FragIdMap)[ptn][clientSite]
+		// 	} else {
+		// 		ts := strings.Split(ptn, ".") // [customer, main]
+		// 		leftID = (*FragIdMap)[ts[0]][ts[1]]
+		// 	}
+
+		// 	ptn = (*patterns)[i+1] // ptn = (book.main|book.segment1|book.segment2)
+		// 	rightID := int64(-1)
+		// 	if strings.HasPrefix(ptn, "(") {
+		// 		rightID = (*FragIdMap)[ptn][clientSite]
+		// 	} else {
+		// 		ts := strings.Split(ptn, ".") // [customer, main]
+		// 		rightID = (*FragIdMap)[ts[0]][ts[1]]
+		// 	}
+
+		// 	// create join node!!!!
+		// 	JoinIDs[int(i/2)] = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), leftID, rightID)
+
+		// 	i += 2
+		// 	if i >= len(*patterns) {
+		// 		break
+		// 	}
+		// }
 		root = logicalPlanTree.AddParentNode(CreateJoinNode(logicalPlanTree.GetTmpTableName(), 0), JoinIDs[0], JoinIDs[1])
+
 	} else {
 		fmt.Println("JoinColMap = ", JoinColMap)
 		// init marker
@@ -828,11 +904,7 @@ func (logicalPlanTree *PlanTree) GetJoinUnionOrders(sel *sqlparser.Select, JoinC
 	for _, cond := range JoinConditions {
 		// e.g. 1. customer.id = orders.customer_id
 		// e.g. 2. book.id = orders.book_id
-		operands := strings.FieldsFunc(cond, f) // get left and right operands, e.g. [customer.id, orders.customer_id]
-		if len(operands) > 2 {
-			operands[1] = strings.Join(operands[1:], " ")
-			operands = operands[:2]
-		}
+		operands := strings.FieldsFunc(cond, f)      // get left and right operands, e.g. [customer.id, orders.customer_id]
 		tableCol1 := strings.Split(operands[0], ".") // [customer, id]
 		tableCol2 := strings.Split(operands[1], ".") // [orders, customer_id]
 		table1 := tableCol1[0]                       // customer
@@ -1063,10 +1135,6 @@ func (logicalPlanTree *PlanTree) buildSelect(sel *sqlparser.Select) {
 			cond = strings.ReplaceAll(cond, " ", "")
 			fmt.Println(cond)
 			operands := strings.FieldsFunc(cond, f)
-			if len(operands) > 2 {
-				operands[1] = strings.Join(operands[1:], " ")
-				operands = operands[:2]
-			}
 			if len(operands) != 2 {
 				continue
 			}
@@ -1608,10 +1676,6 @@ func (logicalPlanTree *PlanTree) buildTable(sel *sqlparser.DDL, sql string) {
 
 				for _, condition := range strings.Split(cond, "and") {
 					operands := strings.FieldsFunc(condition, f)
-					if len(operands) > 2 {
-						operands[1] = strings.Join(operands[1:], " ")
-						operands = operands[:2]
-					}
 					ops := strings.FieldsFunc(condition, f1)
 
 					var Cond storage.Condition
