@@ -215,20 +215,20 @@ func (pt *PlanTree) DrawTreeNode(graph *cgraph.Graph, node_id int64, id *int) *c
 	case 4:
 		// join
 		label := "Join: "
-		if node.Cols == "" {
-			label += "select *\n"
-		} else {
-			label += "select " + node.Cols + "\n"
-		}
+		// if node.Cols == "" {
+		// 	label += "select *\n"
+		// } else {
+		// 	label += "select " + node.Cols + "\n"
+		// }
 
-		if node.Where == "" {
-			label += "Equal Join"
-		} else {
-			label += node.Where
-		}
-		if node.TransferFlag {
-			label += "\nTransfer"
-		}
+		// if node.Where == "" {
+		// 	label += "Equal Join"
+		// } else {
+		// 	label += node.Where
+		// }
+		// if node.TransferFlag {
+		// 	label += "\nTransfer"
+		// }
 		n.SetLabel(label)
 
 		if node.Left != -1 {

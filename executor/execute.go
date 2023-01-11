@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/FiGHtDDB/parser"
 	"github.com/FiGHtDDB/storage"
@@ -48,6 +50,8 @@ var tableList1 = make([]string, 0)
 var tableList2 = make([]string, 0)
 var tableList3 = make([]string, 0)
 var tableList4 = make([]string, 0)
+
+var mutex sync.Mutex
 
 func Strval(value interface{}) string {
 	var key string
@@ -106,43 +110,86 @@ func Strval(value interface{}) string {
 
 // return type?
 // consider we may project, union and join later
-func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int {
-
+func executeNode(node parser.PlanTreeNode, tree *parser.PlanTree, ch chan int) {
+	leftCh := make(chan int, 1)
+	rightCh := make(chan int, 1)
+	
 	if node.Left != -1 {
 		leftNode := tree.Nodes[node.Left]
-		if leftNode.Status != 1 {
-			var resp1 Tuples
-			// fmt.Println("left:", leftNode.TmpTable)
-			res := executeNode(leftNode, tree, resp1)
-			if res == 0 {
-				return 0
+		ok := false
+		for {
+			mutex.Lock()
+			if leftNode.Status == 0 {
+				leftNode.Status = 1
+				mutex.Unlock()
+				ok = true
+				break
+			} else if leftNode.Status == 1 {
+				mutex.Unlock()
+				time.Sleep(200 * time.Millisecond)
+				continue
+			} else {
+				mutex.Unlock()
+				leftCh <- 1
+				break
 			}
-			// leftNode.Status = 1
 		}
-
+		if ok {
+			go executeNode(leftNode, tree, leftCh)
+		}
+	} else {
+		leftCh <- 1
 	}
-
 	if node.Right != -1 {
 		rightNode := tree.Nodes[node.Right]
-		if rightNode.Status != 1 {
-			var resp2 Tuples
-			// fmt.Println("right:", rightNode.TmpTable)
-			res := executeNode(rightNode, tree, resp2)
-			if res == 0 {
-				return 0
+		ok := false
+		for {
+			mutex.Lock()
+			if rightNode.Status == 0 {
+				rightNode.Status = 1
+				mutex.Unlock()
+				ok = true
+				break
+			} else if rightNode.Status == 1 {
+				mutex.Unlock()
+				time.Sleep(200 * time.Millisecond)
+				continue
+			} else {
+				mutex.Unlock()
+				rightCh <- 1
+				break
 			}
-			// rightNode.Status = 1
+		} 
+		
+		if ok {
+			go executeNode(rightNode, tree, rightCh)
 		}
-
+	} else {
+		rightCh <- 1
 	}
 
-	eres := executeOperator(node, tree, resp)
+	rc := <- leftCh
+	if rc == 0 {
+		ch <- 0
+		return
+	}
+	rc = <- rightCh
+	if rc == 0 {
+		ch <- 0
+		return
+	}
+
+	eres := executeOperator(node, tree)
 	if eres == 0 {
-		return 0
+		ch <- 0
+		return
 	}
-	tree.Nodes[node.Nodeid].Status = 1
-	return 1
 
+	mutex.Lock()
+	tree.Nodes[node.Nodeid].Status = 2
+	mutex.Unlock()
+
+	ch <- 1
 }
 func DropTable(tableName string) {
 	//清理main的tmptable
@@ -190,7 +237,7 @@ func CleanTmpTable(node parser.PlanTreeNode) {
 	}
 }
 
-func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int {
+func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree) int {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
@@ -274,7 +321,7 @@ func executeSP(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int
 
 }
 
-func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int {
+func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree) int {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
@@ -343,7 +390,7 @@ func executeScan(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) i
 
 }
 
-func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int {
+func executeUnion(node parser.PlanTreeNode, tree *parser.PlanTree) int {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
@@ -578,7 +625,7 @@ func getRemoteTmpTable(node parser.PlanTreeNode, address string, dest string) in
 	// fmt.Println("[trans amount]", res2)
 	return 1
 }
-func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int {
+func executeJoin(node parser.PlanTreeNode, tree *parser.PlanTree) int {
 	//连接数据库
 	connStr := fmt.Sprintf("dbname=%s port=%d user=%s password=%s sslmode=%s", db.dbname, db.port, db.user, db.password, db.sslmode)
 	client, _ := sql.Open("postgres", connStr)
@@ -869,18 +916,18 @@ func executeTrans(node parser.PlanTreeNode) {
 	}
 }
 
-func executeOperator(node parser.PlanTreeNode, tree *parser.PlanTree, resp Tuples) int {
+func executeOperator(node parser.PlanTreeNode, tree *parser.PlanTree) int {
 	if node.NodeType == 2 || node.NodeType == 3 { //"scan" "projection"{
-		return executeSP(node, tree, resp)
+		return executeSP(node, tree)
 
 	} else if node.NodeType == 4 { //strings.HasPrefix(node.NodeType, "join") {
-		return executeJoin(node, tree, resp)
+		return executeJoin(node, tree)
 
 	} else if node.NodeType == 5 { //"union" {
-		return executeUnion(node, tree, resp)
+		return executeUnion(node, tree)
 
 	} else if node.NodeType == 1 && node.Left != -1 {
-		executeScan(node, tree, resp)
+		executeScan(node, tree)
 	}
 	// executeTrans(node)
 	return 1
@@ -1057,12 +1104,13 @@ func ExecuteInsert(tree *parser.PlanTree) int {
 func ExecuteDelete(tree *parser.PlanTree) int {
 	delNum := [4]int{0, 0, 0, 0}
 	nodeNum := int(tree.NodeNum)
+	ch := make(chan int, 1)
 	for i := 1; i <= nodeNum; i++ {
 		node := tree.Nodes[i]
 		fmt.Println(node.TmpTable, node.ExecStmtWhere)
 		if node.Left != -1 {
-			var resp Tuples
-			executeNode(tree.Nodes[node.Left], tree, resp)
+			executeNode(tree.Nodes[node.Left], tree, ch)
+			<- ch
 		}
 
 		delSql := "delete from " + node.TmpTable + " " + node.ExecStmtWhere
@@ -1222,6 +1270,7 @@ func Execute(tree *parser.PlanTree) (string, int) {
 	tree.Print()
 	resultStr := ""
 	resultLen := 0
+	ch := make(chan int, 1)
 	if len(tree.Nodes) == 0 {
 		return "empty tree", -1
 	}
@@ -1286,8 +1335,8 @@ func Execute(tree *parser.PlanTree) (string, int) {
 		resultLen = ExecuteDropTable(tree)
 		resultStr = "drop success\n"
 	} else {
-		var resp Tuples
-		res := executeNode(tree.Nodes[tree.Root], tree, resp)
+		executeNode(tree.Nodes[tree.Root], tree, ch)
+		res := <- ch
 		if res == 0 {
 			resultLen = 0
 			resultStr = "connect error\n"

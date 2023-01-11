@@ -29,9 +29,9 @@ func Optimize(pt *parser.PlanTree) *parser.PlanTree {
 			continue
 			// physicalPlanTree.Nodes[i].Nodeid = 0 //               !!!!!!!!
 		} else if node.NodeType == 1 && !node.TransferFlag && node.Left == -1 {
-			pt.Nodes[i].Status = 1
+			pt.Nodes[i].Status = 2
 		} else if node.NodeType == -2 {
-			pt.Nodes[i].Status = 1
+			pt.Nodes[i].Status = 2
 		} else {
 			pt.Nodes[i].Status = 0
 		}
